@@ -1,0 +1,9 @@
+@main {
+  d :int  = const 1;
+  print d;
+}
+
+@f {
+  a :int = const 0;
+  print a;
+}
