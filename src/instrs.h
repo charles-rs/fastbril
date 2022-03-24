@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* opcodes */
 #define NOP    0
 #define CONST  1
 #define ADD    2
@@ -39,17 +40,23 @@
 #define FGE    33
 #define LCONST 34
 
-typedef struct instruction
+/* BRIL types */
+#define BRILINT   0
+#define BRILBOOL  1
+#define BRILFLOAT 2
+#define BRILPTR   3
+
+typedef struct norm_instruction
 {
-  uint16_t opcode_lbled;
+  int16_t opcode_lbled;
   uint16_t dest;
   uint16_t arg1;
   uint16_t arg2;
-} instruction_t;
+} norm_instruction_t;
 
 typedef struct br_inst
 {
-  uint16_t opcode_lbled;
+  int16_t opcode_lbled;
   uint16_t test;
   uint16_t ltrue;
   uint16_t lfalse;
@@ -57,7 +64,7 @@ typedef struct br_inst
 
 typedef struct phi_inst
 {
-  uint16_t opcode_lbled;
+  int16_t opcode_lbled;
   uint16_t dest;
   uint16_t num_choices;
   uint16_t __unused;
@@ -73,7 +80,7 @@ typedef struct phi_extension
 
 typedef struct const_instr
 {
-  uint16_t opcode_lbled;
+  int16_t opcode_lbled;
   uint16_t dest;
   int32_t value;
 } const_instr_t;
@@ -82,11 +89,11 @@ typedef int64_t const_extn_t;
 
 typedef struct print_instr
 {
-  uint16_t opcode_lbled;
+  int16_t opcode_lbled;
   uint16_t num_prints;
   uint16_t type1;
   uint16_t arg1;
-} print_intrs_t;
+} print_instr_t;
 
 typedef struct print_args
 {
@@ -95,6 +102,18 @@ typedef struct print_args
   uint16_t type2;
   uint16_t arg2;
 } print_args_t;
+
+typedef union instruction
+{
+  norm_instruction_t norm_insn;
+  br_inst_t br_inst;
+  phi_inst_t phi_inst;
+  phi_extension_t phi_ext;
+  const_instr_t const_insn;
+  const_extn_t const_ext;
+  print_instr_t print_insn;
+  print_args_t print_args;
+} instruction_t;
 
 uint16_t get_opcode(instruction_t);
 bool is_labelled(instruction_t i);
