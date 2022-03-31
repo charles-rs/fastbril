@@ -3,6 +3,9 @@
 #include <stdio.h>
 
 #define TEST_OP(s, ret) if(strcmp(s, str) == 0) { return (ret);}
+#define MAKE_HASH_MAP hashmap_new(sizeof(struct string_uint16), 0, 0, 0, \
+				  hashfun, hash_compare, NULL, NULL);
+
 
 uint16_t opcode_of_string(const char *str)
 {
@@ -123,6 +126,7 @@ size_t parse_instruction(struct json_object_s *json,
 			 struct hashmap *lbl_map,
 			 struct hashmap *tmp_map,
 			 struct hashmap *prt_lbl_map,
+			 struct hashmap *fun_name_to_idx,
 			 const char **idx_to_lbl,
 			 uint16_t *num_lbls,
 			 uint16_t *num_tmps,
@@ -147,7 +151,8 @@ size_t parse_instruction(struct json_object_s *json,
   uint16_t *lbls = 0;
   uint16_t type = 0xffff;
   const char *value = 0;
-
+  const char *fun_nm = 0;
+  
   while(field)
     {
       if(strcmp(field->name->string, "op") == 0)
@@ -190,10 +195,14 @@ size_t parse_instruction(struct json_object_s *json,
 	} else if (strcmp(field->name->string, "type") == 0)
 	{
 	  const char *nm = json_value_as_string(field->value)->string;
+	  printf("type: %s\n", nm);
 	  type = type_of_string(nm);
 	} else if (strcmp(field->name->string, "value") == 0)
 	{
 	  value = json_value_as_number(field->value)->number;
+	} else if (strcmp(field->name->string, "funcs") == 0)
+	{
+	  fun_nm = json_value_as_string(json_value_as_array(field->value)->start->value)->string;
 	}
       field = field->next;
     }
@@ -207,7 +216,7 @@ size_t parse_instruction(struct json_object_s *json,
   if(opcode == PHI)
     {
       extra_words_needed = (numargs << 1);
-    } else if (opcode == PRINT)
+    } else if (opcode == PRINT || opcode == CALL)
     {
       extra_words_needed = ((numargs - 1) << 1);
     } else if (opcode == CONST && type == BRILINT)
@@ -272,6 +281,29 @@ size_t parse_instruction(struct json_object_s *json,
 	    if(xtra_arg + 1 < numargs)
 	      pa.arg2 = args[xtra_arg + 1];
 	    (*insns)[dest + (xtra_arg - 1)/2 + 1].print_args = pa;
+	  }
+      } break;
+    case CALL:
+      {
+	(*insns)[dest].call_inst = (call_inst_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .num_args = numargs,
+	    .target = ((hashdat*) hashmap_get(fun_name_to_idx,
+					      &(hashdat){.str = fun_nm}))->num,
+	  };
+	for(size_t arg = 0; arg < numargs; arg += 4)
+	  {
+	    call_args_t ca;
+	    ca.arg1 = args[arg];
+	    if(arg + 1 < numargs)
+	      ca.arg2 = args[arg + 1];
+	    if(arg + 2 < numargs)
+	      ca.arg3 = args[arg + 2];
+	    if(arg + 3 < numargs)
+	      ca.arg4 = args[arg + 3];
+	    (*insns)[dest + arg/4 + 1].call_args = ca;
 	  }
       } break;
     case LCONST:
@@ -346,8 +378,6 @@ size_t parse_instruction(struct json_object_s *json,
 	  };
       }
     }
-  
-  
   *next_labelled = is_label ? 1 : 0;
   printf("args: ");
   for(int i = 0; i < numargs; ++i)
@@ -365,29 +395,27 @@ size_t parse_instruction(struct json_object_s *json,
 }
 
 
-instruction_t *parse_instructions(struct json_array_s* json)
+instruction_t *parse_instructions(struct json_array_s* json,
+				  struct hashmap *fun_name_to_idx,
+				  struct hashmap *tmp_map,
+				  uint16_t num_temps,
+				  uint16_t *tmp_types)
 {
   size_t insn_len = 32;
   instruction_t *insns = malloc(sizeof(instruction_t) * insn_len);
-  struct hashmap *lbl_map = hashmap_new(sizeof(struct string_uint16), 0, 0, 0,
-					hashfun, hash_compare, NULL, NULL);
-  struct hashmap *tmp_map = hashmap_new(sizeof(struct string_uint16), 0, 0, 0,
-					hashfun, hash_compare, NULL, NULL);
-  struct hashmap *prt_lbl_map = hashmap_new(sizeof(struct string_uint16), 0, 0, 0,
-					    hashfun, hash_compare, NULL, NULL);
+  struct hashmap *lbl_map = MAKE_HASH_MAP;
+  struct hashmap *prt_lbl_map = MAKE_HASH_MAP;
   struct json_array_element_s *tmp = json->start;
   size_t dest = 0;
   uint16_t next_labelled = 0;
-  uint16_t num_temps = 0;
   uint16_t num_lbls = 0;
   const char **idx_to_lbl = malloc(sizeof(char*) * json->length);
-  uint16_t *tmp_types = malloc(sizeof(uint16_t) * json->length);
   for(int i = 0; i < json->length; ++i)
     {
       dest = parse_instruction(json_value_as_object(tmp->value), &insns,
 			       dest, &insn_len, &next_labelled,
-			       lbl_map, tmp_map, prt_lbl_map, idx_to_lbl,
-			       &num_lbls, &num_temps, tmp_types);
+			       lbl_map, tmp_map, prt_lbl_map, fun_name_to_idx,
+			       idx_to_lbl, &num_lbls, &num_temps, tmp_types);
       tmp = tmp->next;
     }
   hashmap_free(lbl_map);
@@ -398,3 +426,94 @@ instruction_t *parse_instructions(struct json_array_s* json)
   return insns;
 }
 
+
+function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_to_idx)
+{
+  struct hashmap *tmp_map = MAKE_HASH_MAP;
+  uint16_t num_temps = 0;
+  uint16_t num_args = 0;
+  uint16_t num_instrs = 0;
+  uint16_t *tmp_types = 0;//malloc(sizeof(uint16_t) * json->length);
+  struct json_object_element_s *field = json->start;
+  function_t fun;
+  struct json_array_s *instrs_json;
+  struct json_array_s *args_json = 0;
+  while(field)
+    {
+      if(strcmp(field->name->string, "name") == 0)
+	{
+	  const char *str = json_value_as_string(field->value)->string;
+	  printf("parsing function %s\n", str);
+	  char *fun_nm = malloc(sizeof(char) * (1 + strlen(str)));
+	  fun.name = strcpy(fun_nm, str);
+	} else if(strcmp(field->name->string, "instrs") == 0)
+	{
+	  num_instrs = json_value_as_array(field->value)->length;
+	  instrs_json = json_value_as_array(field->value);
+	} else if(strcmp(field->name->string, "args") == 0)
+	{
+	  args_json = json_value_as_array(field->value);
+	  num_args = args_json->length;
+	}
+      field = field->next;
+    }
+  tmp_types = malloc(sizeof(uint16_t) * (num_args + num_instrs));
+  if(args_json)
+    {
+      struct json_array_element_s *arg = args_json->start;
+      while(arg)
+	{
+	  struct json_object_element_s *a = json_value_as_object(arg->value)->start;
+	  int16_t alias = num_temps;
+	  while(a)
+	    {
+	      const char *str = json_value_as_string(a->value)->string;
+	      if(strcmp(str, "name") == 0)
+		{
+		  hashmap_set(tmp_map, &(hashdat){.str = str, .num = num_temps++});
+		} else if(strcmp(str, "type") == 0)
+		{
+		  tmp_types[alias] = type_of_string(str);
+		}
+	      a = a->next;
+	    }
+	  arg = arg->next;
+	}
+    }
+  fun.insns = parse_instructions(instrs_json, fun_name_to_idx,
+					 tmp_map, num_temps, tmp_types);
+  return fun;
+}
+
+
+program_t *parse_program(struct json_object_s *json)
+{
+  struct json_array_s *json_funcs = json->start->value->payload;
+  size_t num_funcs = json_funcs->length;
+  program_t *prog = malloc(sizeof(program_t) + sizeof(function_t) * num_funcs);
+  struct json_array_element_s *json_fun = json_funcs->start;
+  struct hashmap *fun_name_to_idx = MAKE_HASH_MAP;
+  for(uint16_t i = 0; i < num_funcs; ++i)
+    {
+      struct json_object_element_s *field = json_value_as_object(json_fun->value)->start;
+      while(field)
+	{
+	  if(strcmp(field->name->string, "name") == 0)
+	    {
+	      const char *nm = json_value_as_string(field->value)->string;
+	      hashmap_set(fun_name_to_idx, &(hashdat){.str = nm, .num = i});
+	    }
+	  field = field->next;
+	}
+      json_fun = json_fun->next;
+    }
+  json_fun = json_funcs->start;
+  for(size_t i = 0; i < num_funcs; ++i)
+    {
+      prog->funcs[i] = parse_function(json_value_as_object(json_fun->value), fun_name_to_idx);
+      json_fun = json_fun->next;
+    }
+  prog->num_funcs = num_funcs;
+  hashmap_free(fun_name_to_idx);
+  return prog;
+}

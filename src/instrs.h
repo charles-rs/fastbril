@@ -2,6 +2,7 @@
 #define INSTRS_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 /* opcodes */
 #define CONST  1
@@ -63,6 +64,22 @@ typedef struct br_inst
   uint16_t lfalse;
 } br_inst_t;
 
+typedef struct call_inst
+{
+  int16_t opcode_lbled;
+  uint16_t dest;
+  uint16_t num_args;
+  uint16_t target;
+} call_inst_t;
+
+typedef struct call_args
+{
+  uint16_t arg1;
+  uint16_t arg2;
+  uint16_t arg3;
+  uint16_t arg4;
+} call_args_t;
+
 typedef struct phi_inst
 {
   int16_t opcode_lbled;
@@ -118,7 +135,26 @@ typedef union instruction
   const_extn_t const_ext;
   print_instr_t print_insn;
   print_args_t print_args;
+  call_inst_t call_inst;
+  call_args_t call_args;
 } instruction_t;
+
+
+typedef struct function
+{
+  char *name;
+  size_t num_insns;
+  instruction_t *insns;
+} function_t;
+
+
+typedef struct program
+{
+  size_t num_funcs;
+  function_t funcs[];
+} program_t;
+
+void free_program(program_t *prog);
 
 uint16_t get_opcode(instruction_t);
 bool is_labelled(instruction_t i);

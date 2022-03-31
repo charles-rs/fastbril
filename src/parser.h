@@ -5,5 +5,5 @@
 #include "instrs.h"
 
 
-instruction_t *parse_instructions(struct json_array_s*);
+program_t *parse_program(struct json_object_s *json);
 #endif
