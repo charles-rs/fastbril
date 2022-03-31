@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 /* opcodes */
-#define NOP    0
 #define CONST  1
 #define ADD    2
 #define MUL    3
@@ -39,6 +38,8 @@
 #define FGT    32
 #define FGE    33
 #define LCONST 34
+#define NOP    35
+#define ID     36
 
 /* BRIL types */
 #define BRILINT   0
@@ -85,7 +86,11 @@ typedef struct const_instr
   int32_t value;
 } const_instr_t;
 
-typedef int64_t const_extn_t;
+typedef union const_extn
+{
+  int64_t int_val;
+  double float_val;
+} const_extn_t;
 
 typedef struct print_instr
 {

@@ -42,6 +42,7 @@ uint16_t opcode_of_string(const char *str)
   TEST_OP( "fle",    FLE);
   TEST_OP( "fgt",    FGT);
   TEST_OP( "fge",    FGE);
+  TEST_OP( "id",     ID);
   return 0xffff;
 }
 
@@ -62,14 +63,14 @@ typedef struct string_uint16
 } hashdat;
 
 uint64_t hashfun(const void *item, uint64_t seed0, uint64_t seed1) {
-    const struct string_uint16 *val = item;
-    return hashmap_sip(val->str, strlen(val->str), seed0, seed1);
+  const struct string_uint16 *val = item;
+  return hashmap_sip(val->str, strlen(val->str), seed0, seed1);
 }
 
 int hash_compare(const void *a, const void *b, void *udata) {
-    const struct string_uint16 *ua = a;
-    const struct string_uint16 *ub = b;
-    return strcmp(ua->str, ub->str);
+  const struct string_uint16 *ua = a;
+  const struct string_uint16 *ub = b;
+  return strcmp(ua->str, ub->str);
 }
 
 uint16_t parse_temp(struct json_value_s *tmp,
@@ -136,7 +137,7 @@ size_t parse_instruction(struct json_object_s *json,
 
   struct json_object_element_s *field = json->start;
   int16_t tagged_opcode = -1;
-  uint16_t opcode;
+  uint16_t opcode = 0;
   uint16_t insn_dest = 0xffff;
   bool is_label = false;
   uint16_t *args = 0;
@@ -145,8 +146,8 @@ size_t parse_instruction(struct json_object_s *json,
   size_t num_cur_lbls = 0;
   uint16_t *lbls = 0;
   uint16_t type = 0xffff;
-  uint64_t value = -1;
-  
+  const char *value = 0;
+
   while(field)
     {
       if(strcmp(field->name->string, "op") == 0)
@@ -167,6 +168,7 @@ size_t parse_instruction(struct json_object_s *json,
 	{
 	  struct json_array_s *arr = field->value->payload;
 	  numargs = arr->length;
+	  printf("found %ld args\n", numargs);
 	  args = malloc(sizeof(uint16_t) * numargs);
 	  struct json_array_element_s *elem = arr->start;
 	  for(int i = 0; i < numargs; ++i)
@@ -191,7 +193,7 @@ size_t parse_instruction(struct json_object_s *json,
 	  type = type_of_string(nm);
 	} else if (strcmp(field->name->string, "value") == 0)
 	{
-	  value = strtoll(json_value_as_number(field->value)->number, 0, 0);
+	  value = json_value_as_number(field->value)->number;
 	}
       field = field->next;
     }
@@ -201,21 +203,26 @@ size_t parse_instruction(struct json_object_s *json,
       tmp_types[insn_dest] = type;
     }
   size_t extra_words_needed = 0;
+
   if(opcode == PHI)
     {
       extra_words_needed = (numargs << 1);
     } else if (opcode == PRINT)
     {
       extra_words_needed = ((numargs - 1) << 1);
-    } else if (opcode == CONST)
+    } else if (opcode == CONST && type == BRILINT)
     {
-      if ((int64_t) ((int16_t) value) != value)
-	{
-	  opcode = LCONST;
-	  tagged_opcode = (tagged_opcode < 0 ? -opcode : opcode);
-	  extra_words_needed = 1;
-	}
+      int64_t val = strtoll(value, 0, 0);
+      if ((int64_t) ((int32_t) val) != val)
+	goto set_long_const;
+    } else if (opcode == CONST && type == BRILFLOAT)
+    {
+    set_long_const:
+      opcode = LCONST;
+      tagged_opcode = (tagged_opcode < 0 ? -opcode : opcode);
+      extra_words_needed = 1;
     }
+
   /* realloc when we run out of space */
   if(dest + extra_words_needed >= *insn_length)
     {
@@ -223,26 +230,123 @@ size_t parse_instruction(struct json_object_s *json,
       (*insn_length) *= 2;
       *insns = realloc(*insns, *insn_length);
     }
-  if(opcode == PHI)
+  printf("got here: %d\n", opcode);
+
+  switch (opcode)
     {
-      (*insns)[dest].phi_inst = ((phi_inst_t) {
-	.opcode_lbled = tagged_opcode,
-	.dest = insn_dest,
-	.num_choices = numargs
-	});
-      for(size_t phi_ext_idx = 0; phi_ext_idx < numargs; phi_ext_idx += 2)
-	{
-	  phi_extension_t ext;
-	  ext.lbl1 = lbls[phi_ext_idx * 2];
-	  ext.val1 = args[phi_ext_idx * 2];
-	  if(phi_ext_idx * 2 + 1 < numargs)
-	    {
-	      ext.lbl2 = lbls[phi_ext_idx * 2 + 1];
-	      ext.val2 = args[phi_ext_idx * 2 + 1];
-	    }
-	  (*insns)[dest + phi_ext_idx + 1].phi_ext = ext;
-	}
+    case 0: break;
+    case PHI:
+      {
+	(*insns)[dest].phi_inst = (phi_inst_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .num_choices = numargs,
+	    .__unused = 0
+	  };
+	for(size_t phi_ext_idx = 0; phi_ext_idx < numargs; phi_ext_idx += 2)
+	  {
+	    phi_extension_t ext;
+	    ext.lbl1 = lbls[phi_ext_idx];
+	    ext.val1 = args[phi_ext_idx];
+	    if(phi_ext_idx + 1 < numargs)
+	      {
+		ext.lbl2 = lbls[phi_ext_idx + 1];
+		ext.val2 = args[phi_ext_idx + 1];
+	      }
+	    (*insns)[dest + (phi_ext_idx/2) + 1].phi_ext = ext;
+	  }
+      } break;
+    case PRINT:
+      {
+	(*insns)[dest].print_insn = (print_instr_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .num_prints = numargs,
+	    .arg1 = args[0]
+	  };
+	for(size_t xtra_arg = 1; xtra_arg < numargs; xtra_arg += 2)
+	  {
+	    print_args_t pa;
+	    pa.arg1 = args[xtra_arg];
+	    if(xtra_arg + 1 < numargs)
+	      pa.arg2 = args[xtra_arg + 1];
+	    (*insns)[dest + (xtra_arg - 1)/2 + 1].print_args = pa;
+	  }
+      } break;
+    case LCONST:
+      {
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {.opcode_lbled = tagged_opcode};
+	if(type == BRILFLOAT)
+	  (*insns)[dest + 1].const_ext.float_val = strtod(value, 0);
+	else
+	  (*insns)[dest + 1].const_ext.int_val = strtoll(value, 0, 0);
+      } break;
+    case CONST:
+      {
+	(*insns)[dest].const_insn = (const_instr_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .value = strtol(value, 0, 0)
+	  };
+      } break;
+    case BR:
+      {
+	printf("branch instr: %d, %ld\n", *num_lbls, numargs);
+	(*insns)[dest].br_inst = (br_inst_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .test = args[0],
+	    .ltrue = lbls[0],
+	    .lfalse = lbls[1]
+	  };
+      } break;
+    case JMP:
+      {
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = lbls[0],
+	    .arg1 = 0,
+	    .arg2 = 0
+	  };
+      } break;
+    case RET:
+      {
+	printf("ret insn\n");
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = 0,
+	    .arg1 = args[0],
+	    .arg2 = 0
+	  };
+      } break;
+    case ID:
+      {
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .arg1 = args[0],
+	    .arg2 = 0
+	  };
+      } break;
+      
+    default:
+      {
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .arg1 = args[0],
+	    .arg2 = args[1]
+	  };
+      }
     }
+  
   
   *next_labelled = is_label ? 1 : 0;
   printf("args: ");
