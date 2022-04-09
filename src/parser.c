@@ -386,12 +386,6 @@ size_t parse_instruction(struct json_object_s *json,
       }
     }
   *next_labelled = is_label ? 1 : 0;
-  printf("args: ");
-  for(int i = 0; i < numargs; ++i)
-    {
-      printf("%d, ", args[i]);
-    }
-  printf("\n");
   if(args)
     free(args);
   if(lbls)
@@ -406,7 +400,8 @@ instruction_t *parse_instructions(struct json_array_s* json,
 				  struct hashmap *fun_name_to_idx,
 				  struct hashmap *tmp_map,
 				  uint16_t num_temps,
-				  uint16_t *tmp_types)
+				  uint16_t *tmp_types,
+				  size_t *num_instrs)
 {
   size_t insn_len = 32;
   instruction_t *insns = malloc(sizeof(instruction_t) * insn_len);
@@ -425,6 +420,7 @@ instruction_t *parse_instructions(struct json_array_s* json,
 			       idx_to_lbl, &num_lbls, &num_temps, tmp_types);
       tmp = tmp->next;
     }
+  *num_instrs = dest;
   for(size_t i = 0; i < dest; ++i)
     {
       instruction_t *insn = insns + i;
@@ -544,8 +540,10 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
 	  arg = arg->next;
 	}
     }
+  size_t num_words;
   fun.insns = parse_instructions(instrs_json, fun_name_to_idx,
-					 tmp_map, num_temps, tmp_types);
+				 tmp_map, num_temps, tmp_types, &num_words);
+  fun.num_insns = num_words;
   return fun;
 }
 
