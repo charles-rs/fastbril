@@ -149,7 +149,7 @@ size_t parse_instruction(struct json_object_s *json,
 {
 
   struct json_object_element_s *field = json->start;
-  int16_t tagged_opcode = -1;
+  uint16_t tagged_opcode = 0xffff;
   uint16_t opcode = 0;
   uint16_t insn_dest = 0xffff;
   bool is_label = false;
@@ -166,9 +166,8 @@ size_t parse_instruction(struct json_object_s *json,
     {
       if(strcmp(field->name->string, "op") == 0)
 	{
-	  tagged_opcode = opcode_of_string(json_value_as_string(field->value)->string)
-	    * (*next_labelled ? -1 : 1);
-	  opcode = abs(tagged_opcode);
+	  opcode = opcode_of_string(json_value_as_string(field->value)->string);
+	  tagged_opcode = opcode | (*next_labelled ? 0x8000 : 0);
 	} else if (strcmp(field->name->string, "label") == 0)
 	{
 	  is_label = true;
@@ -237,7 +236,7 @@ size_t parse_instruction(struct json_object_s *json,
     {
     set_long_const:
       opcode = LCONST;
-      tagged_opcode = (tagged_opcode < 0 ? -opcode : opcode);
+      tagged_opcode = (tagged_opcode & 0x8000 ? opcode | 0x8000 : opcode);
       extra_words_needed = 1;
     }
   printf("dest: %ld\n", dest);
@@ -248,7 +247,7 @@ size_t parse_instruction(struct json_object_s *json,
       printf("reallocing to length %ld...\n", *insn_length);
       *insns = realloc(*insns, *insn_length * sizeof(instruction_t));
     }
-  printf("got here: %d\n", opcode);
+  printf("got here: %d %d %d\n", tagged_opcode, tagged_opcode & 0x7fff, opcode);
 
   switch (opcode)
     {
