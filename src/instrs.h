@@ -4,53 +4,15 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-/* opcodes */
-#define CONST  1
-#define ADD    2
-#define MUL    3
-#define SUB    4
-#define DIV    5
-#define EQ     6
-#define LT     7
-#define GT     8
-#define LE     9
-#define GE     10
-#define NOT    11
-#define AND    12
-#define OR     13
-#define JMP    14
-#define BR     15
-#define CALL   16
-#define RET    17
-#define PRINT  18
-#define PHI    19
-#define ALLOC  20
-#define FREE   21
-#define STORE  22
-#define LOAD   23
-#define PTRADD 24
-#define FADD   25
-#define FMUL   26
-#define FSUB   27
-#define FDIV   28
-#define FEQ    29
-#define FLT    30
-#define FLE    31
-#define FGT    32
-#define FGE    33
-#define LCONST 34
-#define NOP    35
-#define ID     36
-
-/* BRIL types */
-#define BRILINT   0
-#define BRILBOOL  1
-#define BRILFLOAT 2
-#define BRILPTR   3
+#include "base.h"
+#include "float.h"
+#include "mem.h"
+#include "ssa.h"
+#include "types.h"
 
 typedef struct norm_instruction
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t dest;
   uint16_t arg1;
   uint16_t arg2;
@@ -58,7 +20,7 @@ typedef struct norm_instruction
 
 typedef struct br_inst
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t test;
   uint16_t ltrue;
   uint16_t lfalse;
@@ -66,7 +28,7 @@ typedef struct br_inst
 
 typedef struct call_inst
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t dest;
   uint16_t num_args;
   uint16_t target;
@@ -74,15 +36,12 @@ typedef struct call_inst
 
 typedef struct call_args
 {
-  uint16_t arg1;
-  uint16_t arg2;
-  uint16_t arg3;
-  uint16_t arg4;
+  uint16_t args[4];
 } call_args_t;
 
 typedef struct phi_inst
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t dest;
   uint16_t num_choices;
   uint16_t __unused;
@@ -98,10 +57,18 @@ typedef struct phi_extension
 
 typedef struct const_instr
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t dest;
   int32_t value;
 } const_instr_t;
+
+typedef struct long_const_instr
+{
+  uint16_t opcode_lbled;
+  uint16_t dest;
+  uint16_t type;
+  uint16_t __unused;
+} long_const_instr_t;
 
 typedef union const_extn
 {
@@ -111,7 +78,7 @@ typedef union const_extn
 
 typedef struct print_instr
 {
-  int16_t opcode_lbled;
+  uint16_t opcode_lbled;
   uint16_t num_prints;
   uint16_t type1;
   uint16_t arg1;
@@ -132,6 +99,7 @@ typedef union instruction
   phi_inst_t phi_inst;
   phi_extension_t phi_ext;
   const_instr_t const_insn;
+  long_const_instr_t long_const_insn;
   const_extn_t const_ext;
   print_instr_t print_insn;
   print_args_t print_args;
@@ -144,6 +112,7 @@ typedef struct function
 {
   char *name;
   size_t num_insns;
+  size_t num_tmps;
   instruction_t *insns;
 } function_t;
 
@@ -156,7 +125,7 @@ typedef struct program
 
 void free_program(program_t *prog);
 
-uint16_t get_opcode(instruction_t);
-bool is_labelled(instruction_t i);
+uint16_t get_opcode(const instruction_t);
+bool is_labelled(const instruction_t i);
 
 #endif

@@ -2,8 +2,15 @@ TARGET_EXEC ?= fastbrili
 
 BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src
+CONGIG_DiR ?= ./config
+DOC_DIR ?= ./doc
+
+CONFIGS := $(shell find ./config/ -name "*.cf")
+GEN_HEAD := $(shell for FILE in $(CONFIGS); do echo $$FILE | awk -F'[/.]' '{printf "src/%s.h\n", $$4}'; done)
+GEN_TEX := $(shell for FILE in $(CONFIGS); do echo $$FILE | awk -F'[/.]' '{printf "doc/%s.tex\n", $$4}'; done)
 
 SRCS := $(shell find $(SRC_DIRS) -name *.cpp -or -name *.c -or -name *.s)
+
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
@@ -12,7 +19,7 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 CPPFLAGS ?= $(INC_FLAGS) -MMD -MP -g
 
-CFLAGS ?= $(INC_FLAGS) -std=c99 -g
+CFLAGS += $(INC_FLAGS) -std=c99 -g
 
 $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
@@ -23,7 +30,7 @@ $(BUILD_DIR)/%.s.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
 # c source
-$(BUILD_DIR)/%.c.o: %.c
+$(BUILD_DIR)/%.c.o: %.c | $(GEN_HEAD)
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
@@ -32,10 +39,24 @@ $(BUILD_DIR)/%.cpp.o: %.cpp
 	$(MKDIR_P) $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
+# configured header files
+$(GEN_HEAD): $(CONFIGS) srcgen.sh srcgen.awk
+	./srcgen.sh $@
+
+brb.pdf: $(GEN_TEX) $(DOC_DIR)/main.tex
+	cd $(DOC_DIR) && latex -output-format=pdf main.tex && mv main.pdf brb.pdf
+
+doc: brb.pdf
+
+$(GEN_TEX): $(configs) docgen.sh docgen.awk
+	$(MKDIR_P) $(dir $@)
+	./docgen.sh $@
 
 .PHONY: clean
 
 clean:
+	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o -name "*.out" | xargs rm
+	$(RM) $(GEN_HEAD)
 	$(RM) -r $(BUILD_DIR)
 
 -include $(DEPS)

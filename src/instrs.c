@@ -1,12 +1,12 @@
 #include "instrs.h"
 
-inline uint16_t get_opcode(instruction_t i)
+inline uint16_t get_opcode(const instruction_t i)
 {
-  return abs(i.norm_insn.opcode_lbled);
+  return i.norm_insn.opcode_lbled & 0x7fff;
 }
-inline bool is_labelled(instruction_t i)
+inline bool is_labelled(const instruction_t i)
 {
-  return i.norm_insn.opcode_lbled < 0;
+  return i.norm_insn.opcode_lbled & 0x8000;
 }
 
 
