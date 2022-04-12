@@ -3,6 +3,15 @@
 
 #define TEST_OP(s, o) if(o == op) {return s;}
 
+static inline char *type_to_string(uint16_t op)
+{
+  TEST_OP( "int",    BRILINT);
+  TEST_OP( "bool",   BRILBOOL);
+  TEST_OP( "float",  BRILFLOAT);
+  TEST_OP( "ptr<>",  BRILPTR);
+  return "";
+}
+
 static inline char *opcode_to_string(uint16_t op)
 {
   /* printf("op: %s\n", str); */
@@ -43,6 +52,20 @@ static inline char *opcode_to_string(uint16_t op)
   TEST_OP( "fge",    FGE);
   TEST_OP( "id",     ID);
   return "";
+}
+
+
+void format_fun_name(FILE *stream, const char *fun_name)
+{
+  putc('@', stream);
+  char *num = strrchr(fun_name, '_');
+  if(num)
+    {
+      for(const char *c = fun_name; c != num; ++c)
+	putc(*c, stream);
+    }
+  else
+    fprintf(stream, "%s", fun_name);
 }
 
 
@@ -101,9 +124,15 @@ size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t i
       {
 	char *target = prog->funcs[insns[idx].call_inst.target].name;
 	if(insns[idx].call_inst.dest != 0xffff)
-	  fprintf(stream, "    t%d = call @%s", insns[idx].call_inst.dest, target);
+	  {
+	    fprintf(stream, "    t%d = call ", insns[idx].call_inst.dest);
+	    format_fun_name(stream, target);
+	  }
 	else
-	  fprintf(stream, "    call @%s", target);
+	  {
+	    fprintf(stream, "    call ");
+	    format_fun_name(stream, target);
+	  }
 	uint16_t *args = (uint16_t*) (insns + idx + 1);
 	for(size_t i = 0; i < insns[idx].call_inst.num_args; ++i)
 	  fprintf(stream, " t%d", args[i]);
@@ -158,22 +187,48 @@ size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t i
 
 size_t get_num_args(const char *fun_name)
 {
-  char *num = strrchr(fun_name, '_') + 1;
-  return strtol(num, 0, 10);
+  char *num = strrchr(fun_name, '_');
+  return num == 0 ? 0 : strlen(num + 1);
 }
+
+void format_fun_header(FILE *stream, const char *fun_name)
+{
+  putc('@', stream);
+  char *num = strrchr(fun_name, '_');
+  if(num)
+    {
+      for(const char *c = fun_name; c != num; ++c)
+	putc(*c, stream);
+      putc('(', stream);
+      size_t a = 0;
+      for(const char *c = num + 1; *c != '\0'; ++c)
+	{
+	  if(a != 0)
+	    fprintf(stream, ", ");
+	  fprintf(stream, "t%ld :%s", a, type_to_string(*c - '0'));
+	  ++a;
+	}
+      putc(')', stream);
+    }
+  else
+    fprintf(stream, "%s", fun_name);
+  putc('\n', stream);
+}
+
 
 void format_program(FILE *stream, program_t *prog)
 {
   for(size_t f = 0; f < prog->num_funcs; ++f)
     {
-      fprintf(stream, "@%s(", prog->funcs[f].name);
-      for(size_t a = 0; a < get_num_args(prog->funcs[f].name); ++a)
-	{
-	  if(a != 0)
-	    fprintf(stream, ", ");
-	  fprintf(stream, "t%ld", a);
-	}
-      fprintf(stream, ")\n  {\n");
+      //fprintf(stream, "@%s(", prog->funcs[f].name);
+      format_fun_header(stream, prog->funcs[f].name);
+      /* for(size_t a = 0; a < get_num_args(prog->funcs[f].name); ++a) */
+      /* 	{ */
+      /* 	  if(a != 0) */
+      /* 	    fprintf(stream, ", "); */
+      /* 	  fprintf(stream, "t%ld", a); */
+      /* 	} */
+      fprintf(stream, "  {\n");
       size_t idx = 0;
       while(idx < prog->funcs[f].num_insns)
 	idx = format_insn(stream, prog, prog->funcs[f].insns, idx);

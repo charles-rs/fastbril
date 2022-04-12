@@ -13,10 +13,10 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
       /* for(size_t i = 0; i < prog->funcs[which_fun].num_tmps; ++i) */
       /* 	printf("%ld ", context[i].int_val); */
       /* printf("\n"); */
-      instruction_t i = prog->funcs[which_fun].insns[which_insn];
+      instruction_t *i = prog->funcs[which_fun].insns + which_insn;
       size_t next_insn = which_insn + 1;
       ++*dyn_insns;
-      if(is_labelled(i))
+      if(is_labelled(*i))
 	{
 	  labels[1] = labels[0];
 	  labels[0] = which_insn;
@@ -24,170 +24,173 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
       //      printf("opcode: %d\narg1: %ld\n", get_opcode(i), context[i.norm_insn.arg1].int_val);
       /* printf("opcode: %d\narg1: %d\ndest: %d\n", get_opcode(i), i.norm_insn.arg1, i.norm_insn.dest); */
       /* printf("%s\ninsn: %ld\n", prog->funcs[which_fun].name, which_insn); */
-      switch(get_opcode(i))
+      switch(get_opcode(*i))
 	{
 	case CONST:
-	  context[i.const_insn.dest] = (value_t) {.int_val = i.const_insn.value};
+	  context[i->const_insn.dest] = (value_t) {.int_val = i->const_insn.value};
 	  break;
 	case ADD:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val +
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val +
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case MUL:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val *
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val *
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case SUB:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val -
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val -
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case DIV:
-	  if(context[i.norm_insn.arg2].int_val == 0)
+	  if(context[i->norm_insn.arg2].int_val == 0)
 	    {
 	      fprintf(stderr, "Divide by 0. Exiting\n");
 	      exit(1);
 	    }
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val /
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val /
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case EQ:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val ==
-	     context[i.norm_insn.arg2].int_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val ==
+	     context[i->norm_insn.arg2].int_val ? 1 : 0};
 	  break;
 	case LT:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val <
-	     context[i.norm_insn.arg2].int_val ? 1 : 0};
-	  /* printf("lt: %ld %ld %ld\n", context[i.norm_insn.arg1].int_val, */
-	  /* 	 context[i.norm_insn.arg2].int_val,context[i.norm_insn.dest].int_val); */
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val <
+	     context[i->norm_insn.arg2].int_val ? 1 : 0};
+	  /* printf("lt: %ld %ld %ld\n", context[i->norm_insn.arg1].int_val, */
+	  /* 	 context[i->norm_insn.arg2].int_val,context[i->norm_insn.dest].int_val); */
 	  break;
 	case GT:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val >
-	     context[i.norm_insn.arg2].int_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val >
+	     context[i->norm_insn.arg2].int_val ? 1 : 0};
 	  break;
 	case LE:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val <=
-	     context[i.norm_insn.arg2].int_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val <=
+	     context[i->norm_insn.arg2].int_val ? 1 : 0};
 	  break;
 	case GE:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val >=
-	     context[i.norm_insn.arg2].int_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val >=
+	     context[i->norm_insn.arg2].int_val ? 1 : 0};
 	  break;
 	case NOT:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = 1 ^ context[i.norm_insn.arg1].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = 1 ^ context[i->norm_insn.arg1].int_val};
 	  break;
 	case AND:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val &
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val &
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case OR:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].int_val +
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].int_val |
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case JMP:
-	  next_insn = i.norm_insn.dest;
+	  next_insn = i->norm_insn.dest;
 	  break;
 	case BR:
-	  next_insn = context[i.br_inst.test].int_val == 1
-	    ? i.br_inst.ltrue : i.br_inst.lfalse;
+	  next_insn = context[i->br_inst.test].int_val == 1
+	    ? i->br_inst.ltrue : i->br_inst.lfalse;
 	  break;
 	case CALL:
 	  {
-	    value_t args[i.call_inst.num_args];
-	    for(size_t a = 0; a < i.call_inst.num_args; ++a)
+	    value_t args[i->call_inst.num_args];
+	    for(size_t a = 0; a < i->call_inst.num_args; ++a)
 	      args[a] = context[prog->funcs[which_fun].insns[which_insn + 1 + a / 4]
 				.call_args.args[a % 4]];
 	    /* printf("first arg is: %ld\n", args[0].int_val); */
-	    next_insn += (i.call_inst.num_args + 3) / 4;
-	    value_t tmp = interp_fun(prog, dyn_insns, i.call_inst.target,
-				     args, i.call_inst.num_args);
-	    if(i.call_inst.dest != 0xffff)
-	      context[i.call_inst.dest] = tmp;
+	    next_insn += (i->call_inst.num_args + 3) / 4;
+	    value_t tmp = interp_fun(prog, dyn_insns, i->call_inst.target,
+				     args, i->call_inst.num_args);
+	    if(i->call_inst.dest != 0xffff)
+	      context[i->call_inst.dest] = tmp;
 	    /* printf("returning to %s\n", prog->funcs[which_fun].name); */
 	    break;
 	  }
 	case RET:
 	  /* printf("RET  INSN\n"); */
-	  if(i.norm_insn.arg1 == 0xffff)
+	  if(i->norm_insn.arg1 == 0xffff)
 	    return (value_t) {.int_val = 0xffffffffffffffff};
 	  else
-	    return context[i.norm_insn.arg1];
+	    return context[i->norm_insn.arg1];
 	case PRINT:
 	  {
-	    uint16_t *args = &i.print_insn.type1;
-	    for(size_t a = 0; a < i.print_insn.num_prints; ++a)
+	    uint16_t *args = (uint16_t*) &(i->print_insn.type1);
+	    for(size_t a = 0; a < i->print_insn.num_prints; ++a)
 	      {
+		if(a != 0)
+		  printf(" ");
 		switch(args[2 * a])
 		  {
 		  case BRILBOOL:
-		    puts(context[args[2 * a + 1]].int_val ? "true" : "false");
+		    printf("%s", context[args[2 * a + 1]].int_val ? "true" : "false");
 		    break;
 		  case BRILINT:
-		    printf("%ld\n", context[args[2 * a + 1]].int_val);
+		    printf("%ld", context[args[2 * a + 1]].int_val);
 		    break;
 		  case BRILFLOAT:
-		    printf("%.17g\n", context[args[2 * a + 1]].float_val);
+		    printf("%.17g", context[args[2 * a + 1]].float_val);
 		    break;
 		  case BRILPTR:
-		    printf("%p\n", context[args[2 * a + 1]].ptr_val);
+		    printf("%p", context[args[2 * a + 1]].ptr_val);
 		    break;
 		  default:
 		    fprintf(stderr, "unrecognized type: %d. exiting.\n", args[2 * a]);
 		    exit(1);
 		  }
 	      }
-	    next_insn += (i.print_insn.num_prints - 1) / 2;
+	    printf("\n");
+	    next_insn += (i->print_insn.num_prints) / 2;
 	    break;
 	  }
 	case LCONST:
-	  context[i.long_const_insn.dest] =
+	  context[i->long_const_insn.dest] =
 	    *((value_t*) &prog->funcs[which_fun].insns[which_insn + 1]);
 	  ++next_insn;
 	  break;
 	case NOP:
 	  break;
 	case ID:
-	  context[i.norm_insn.dest] = context[i.norm_insn.arg1];
+	  context[i->norm_insn.dest] = context[i->norm_insn.arg1];
 	  break;
 	case ALLOC:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.ptr_val = malloc(sizeof(value_t) * context[i.norm_insn.arg1].int_val)};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.ptr_val = malloc(sizeof(value_t) * context[i->norm_insn.arg1].int_val)};
 	  break;
 	case FREE:
-	  free(context[i.norm_insn.arg1].ptr_val);
+	  free(context[i->norm_insn.arg1].ptr_val);
 	  break;
 	case STORE:
-	  *(context[i.norm_insn.arg1].ptr_val) = context[i.norm_insn.arg2];
+	  *(context[i->norm_insn.arg1].ptr_val) = context[i->norm_insn.arg2];
 	  break;
 	case LOAD:
-	  context[i.norm_insn.dest] = *(context[i.norm_insn.arg1].ptr_val);
+	  context[i->norm_insn.dest] = *(context[i->norm_insn.arg1].ptr_val);
 	  break;
 	case PTRADD:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.ptr_val = context[i.norm_insn.arg1].ptr_val +
-	     context[i.norm_insn.arg2].int_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.ptr_val = context[i->norm_insn.arg1].ptr_val +
+	     context[i->norm_insn.arg2].int_val};
 	  break;
 	case PHI:
 	  {
-	    size_t num_choices = i.phi_inst.num_choices;
+	    size_t num_choices = i->phi_inst.num_choices;
 	    next_insn += (num_choices + 1) / 2;
 	    for(size_t a = 0; a < num_choices; ++a)
 	      {
 		if (labels[1] ==
 		    ((uint16_t*) (&prog->funcs[which_fun]
 				  .insns[which_insn + 1 + a/2].phi_ext))[(a % 2) * 2])
-		  context[i.phi_inst.dest] =
+		  context[i->phi_inst.dest] =
 		    context[
 			    ((uint16_t*) (&prog->funcs[which_fun]
 					  .insns[which_insn + 1 + a/2]
@@ -196,52 +199,52 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 	    break;
 	  }
 	case FADD:
-	   context[i.norm_insn.dest] = (value_t)
-	    {.float_val = context[i.norm_insn.arg1].float_val +
-	     context[i.norm_insn.arg2].float_val};
+	   context[i->norm_insn.dest] = (value_t)
+	    {.float_val = context[i->norm_insn.arg1].float_val +
+	     context[i->norm_insn.arg2].float_val};
 	   break;
 	case FMUL:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.float_val = context[i.norm_insn.arg1].float_val *
-	     context[i.norm_insn.arg2].float_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.float_val = context[i->norm_insn.arg1].float_val *
+	     context[i->norm_insn.arg2].float_val};
 	   break;
 	case FSUB:
-	   context[i.norm_insn.dest] = (value_t)
-	    {.float_val = context[i.norm_insn.arg1].float_val -
-	     context[i.norm_insn.arg2].float_val};
+	   context[i->norm_insn.dest] = (value_t)
+	    {.float_val = context[i->norm_insn.arg1].float_val -
+	     context[i->norm_insn.arg2].float_val};
 	   break;
 	case FDIV:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.float_val = context[i.norm_insn.arg1].float_val /
-	     context[i.norm_insn.arg2].float_val};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.float_val = context[i->norm_insn.arg1].float_val /
+	     context[i->norm_insn.arg2].float_val};
 	   break;
 	case FEQ:
-	   context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].float_val ==
-	     context[i.norm_insn.arg2].float_val ? 1 : 0};
+	   context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].float_val ==
+	     context[i->norm_insn.arg2].float_val ? 1 : 0};
 	   break;
 	case FLT:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].float_val <
-	     context[i.norm_insn.arg2].float_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].float_val <
+	     context[i->norm_insn.arg2].float_val ? 1 : 0};
 	   break;
 	case FLE:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].float_val <=
-	     context[i.norm_insn.arg2].float_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].float_val <=
+	     context[i->norm_insn.arg2].float_val ? 1 : 0};
 	   break;
 	case FGT:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].float_val >
-	     context[i.norm_insn.arg2].float_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].float_val >
+	     context[i->norm_insn.arg2].float_val ? 1 : 0};
 	   break;
 	case FGE:
-	  context[i.norm_insn.dest] = (value_t)
-	    {.int_val = context[i.norm_insn.arg1].float_val >=
-	     context[i.norm_insn.arg2].float_val ? 1 : 0};
+	  context[i->norm_insn.dest] = (value_t)
+	    {.int_val = context[i->norm_insn.arg1].float_val >=
+	     context[i->norm_insn.arg2].float_val ? 1 : 0};
 	   break;
 	default:
-	  fprintf(stderr, "unrecognized opcode: %d, exiting.\n", get_opcode(i));
+	  fprintf(stderr, "unrecognized opcode: %d, exiting.\n", get_opcode(*i));
 	  exit(1);
 	}
       which_insn = next_insn;
@@ -276,5 +279,6 @@ value_t interp_fun(program_t *prog, size_t *dyn_insns,
   memcpy(context, args, sizeof(value_t) * num_args);
   value_t tmp = interpret_insn(prog, which_fun, context, labels, dyn_insns, 0);
   free(context);
+  //printf("returning %ld\n", tmp.int_val);
   return tmp;
 }
