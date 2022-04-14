@@ -494,6 +494,46 @@ instruction_t *parse_instructions(struct json_array_s* json,
   return insns;
 }
 
+static inline size_t num_digits(size_t i)
+{
+  if(i == 0) return 0;
+  else return 1 + num_digits(i/10);
+}
+
+size_t put_type_in_string(char **str, struct json_value_s *type,
+			  size_t start, size_t *len)
+{
+  size_t space_needed = 1;
+  size_t ptr_depth = 0;
+  uint16_t base_type;
+  if(type)
+    {
+      while(type->type == json_type_object)
+	{
+	  ++ptr_depth;
+	  type = json_value_as_object(type)->start->value;
+	}
+      base_type = type_of_string(json_value_as_string(type)->string);
+      if(ptr_depth)
+	{
+	  space_needed += num_digits(ptr_depth);
+	}
+    } else
+    {
+      base_type = BRILVOID;
+    }
+  if(start + space_needed > *len)
+    {
+      *len = (start + space_needed) * 2;
+      *str = realloc(*str, *len);
+    }
+  if(ptr_depth)
+    sprintf(*str + start, "%ld%c", ptr_depth, type_to_char[base_type]);
+  else
+    sprintf(*str + start, "%c", type_to_char[base_type]);
+  return start + space_needed;
+}
+
 
 function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_to_idx)
 {
@@ -506,6 +546,7 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
   function_t fun;
   struct json_array_s *instrs_json;
   struct json_array_s *args_json = 0;
+  struct json_value_s *ret_tp = 0;
   while(field)
     {
       if(strcmp(field->name->string, "name") == 0)
@@ -522,20 +563,27 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
 	{
 	  args_json = json_value_as_array(field->value);
 	  num_args = args_json->length;
+	} else if(strcmp(field->name->string, "type") == 0)
+	{
+	  ret_tp = field->value;
 	}
       field = field->next;
     }
   //char enough[num_args];
   //sprintf(enough, "_%d", num_args);
-  fun.name = realloc(fun.name, strlen(fun.name) + num_args + 2);
+  size_t end_of_name = strlen(fun.name);
+  size_t name_len = end_of_name + num_args + 5;
+  fun.name = realloc(fun.name, name_len);
+  fun.name[end_of_name++] = '_';
   //strcpy(fun.name + strlen(fun.name), enough);
   tmp_types = malloc(sizeof(uint16_t) * (num_args + num_instrs));
+  end_of_name = put_type_in_string(&fun.name, ret_tp, end_of_name, &name_len);
   if(args_json)
     {
       struct json_array_element_s *arg = args_json->start;
-      char *fun_name_tp_ptr = fun.name + strlen(fun.name);
-      *fun_name_tp_ptr = '_';
-      ++fun_name_tp_ptr;
+      /* char *fun_name_tp_ptr = fun.name + strlen(fun.name); */
+      /* *fun_name_tp_ptr = '_'; */
+      /* ++fun_name_tp_ptr; */
       while(arg)
 	{
 	  struct json_object_element_s *a = json_value_as_object(arg->value)->start;
@@ -555,14 +603,18 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
 		{
 		  uint16_t tp = type_of_json_value(a->value);
 		  tmp_types[alias] = tp;
-		  *fun_name_tp_ptr = tp + '0';
+		  end_of_name = put_type_in_string(&fun.name,
+						   a->value, end_of_name,
+						   &name_len);
+		    //*fun_name_tp_ptr = tp + '0';
 		}
 	      a = a->next;
 	    }
-	  ++fun_name_tp_ptr;
+	  //++fun_name_tp_ptr;
 	  arg = arg->next;
 	}
-      *fun_name_tp_ptr = '\0';
+      //*fun_name_tp_ptr = '\0';
+      fun.name[name_len] = '\0';
     }
   size_t num_words;
   /* printf("supposedly there are %d args\n", num_temps); */

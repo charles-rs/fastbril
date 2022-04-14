@@ -17,9 +17,18 @@ DEPS := $(OBJS:.o=.d)
 INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
-CPPFLAGS ?= $(INC_FLAGS) -MMD -MP -g
 
-CFLAGS += $(INC_FLAGS) -std=c99 -g
+CFLAGS += $(INC_FLAGS) -std=c11
+
+.PHONY: debug
+
+debug: CFLAGS += -g -Og
+debug: $(BUILD_DIR)/$(TARGET_EXEC)
+
+.PHONY: release
+
+release: CFLAGS += -O3
+release: $(BUILD_DIR)/$(TARGET_EXEC)
 
 $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
@@ -32,12 +41,7 @@ $(BUILD_DIR)/%.s.o: %.s
 # c source
 $(BUILD_DIR)/%.c.o: %.c | $(GEN_HEAD)
 	$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
-
-# c++ source
-$(BUILD_DIR)/%.cpp.o: %.cpp
-	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # configured header files
 $(GEN_HEAD): $(CONFIGS) srcgen.sh srcgen.awk
@@ -55,7 +59,7 @@ $(GEN_TEX): $(configs) docgen.sh docgen.awk
 .PHONY: clean
 
 clean:
-	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o -name "*.out" | xargs rm
+	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o -name | xargs rm || true
 	$(RM) $(GEN_HEAD)
 	$(RM) -r $(BUILD_DIR)
 

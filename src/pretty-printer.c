@@ -1,5 +1,6 @@
 #include "pretty-printer.h"
 #include <string.h>
+#include <ctype.h>
 
 #define TEST_OP(s, o) if(o == op) {return s;}
 
@@ -11,6 +12,18 @@ static inline char *type_to_string(uint16_t op)
   TEST_OP( "ptr<>",  BRILPTR);
   return "";
 }
+
+static inline char *base_type_to_string(char tp)
+{
+  switch (tp)
+    {
+    case 'i': return "int";
+    case 'f': return "float";
+    case 'b': return "bool";
+    }
+  return "";
+}
+
 
 static inline char *opcode_to_string(uint16_t op)
 {
@@ -191,24 +204,59 @@ size_t get_num_args(const char *fun_name)
   return num == 0 ? 0 : strlen(num + 1);
 }
 
+const char *next_tp(const char *prev_tp)
+{
+  if(isdigit(*prev_tp))
+    {
+      char *end;
+      strtol(prev_tp, &end, 10);
+      return *(end + 1) == '\0' ? 0 : end + 1;
+    } else return *(prev_tp + 1) == '\0' ? 0 : prev_tp + 1;
+}
+
+
+void format_type(FILE *stream, const char *type)
+{
+  if(isdigit(*type))
+    {
+      char *end;
+      size_t depth = strtol(type, &end, 10);
+      for(size_t i = 0; i < depth; ++i)
+	fprintf(stream, "ptr<");
+      fprintf(stream, "%s", base_type_to_string(*end));
+      for(size_t i = 0; i < depth; ++i)
+	putc('>', stream);
+    } else
+    {
+      fprintf(stream, "%s", base_type_to_string(*type));
+    }
+}
+
 void format_fun_header(FILE *stream, const char *fun_name)
 {
   putc('@', stream);
   char *num = strrchr(fun_name, '_');
   if(num)
     {
+      const char *ret_tp = num + 1;
       for(const char *c = fun_name; c != num; ++c)
 	putc(*c, stream);
       putc('(', stream);
       size_t a = 0;
-      for(const char *c = num + 1; *c != '\0'; ++c)
+      for(const char *arg_tp = next_tp(ret_tp); arg_tp; arg_tp = next_tp(arg_tp))
 	{
 	  if(a != 0)
 	    fprintf(stream, ", ");
-	  fprintf(stream, "t%ld :%s", a, type_to_string(*c - '0'));
+	  fprintf(stream, "t%ld :", a);
+	  format_type(stream, arg_tp);
 	  ++a;
 	}
       putc(')', stream);
+      if(*ret_tp != 'v')
+	{
+	  fprintf(stream, " :");
+	  format_type(stream, ret_tp);
+	}
     }
   else
     fprintf(stream, "%s", fun_name);

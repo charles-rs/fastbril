@@ -128,4 +128,8 @@ void free_program(program_t *prog);
 uint16_t get_opcode(const instruction_t);
 bool is_labelled(const instruction_t i);
 
+extern char type_to_char[];
+
+
+
 #endif

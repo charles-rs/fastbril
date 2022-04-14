@@ -19,3 +19,8 @@ void free_program(program_t *prog)
     }
   free(prog);
 }
+
+
+
+char type_to_char[5] = {'i', 'b', 'f', 'p', 'v'};
+
