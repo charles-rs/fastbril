@@ -68,6 +68,24 @@ static inline char *opcode_to_string(uint16_t op)
 }
 
 
+void format_type(FILE *stream, const char *type)
+{
+  if(isdigit(*type))
+    {
+      char *end;
+      size_t depth = strtol(type, &end, 10);
+      for(size_t i = 0; i < depth; ++i)
+	fprintf(stream, "ptr<");
+      fprintf(stream, "%s", base_type_to_string(*end));
+      for(size_t i = 0; i < depth; ++i)
+	putc('>', stream);
+    } else
+    {
+      fprintf(stream, "%s", base_type_to_string(*type));
+    }
+}
+
+
 void format_fun_name(FILE *stream, const char *fun_name)
 {
   putc('@', stream);
@@ -138,7 +156,10 @@ size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t i
 	char *target = prog->funcs[insns[idx].call_inst.target].name;
 	if(insns[idx].call_inst.dest != 0xffff)
 	  {
-	    fprintf(stream, "    t%d = call ", insns[idx].call_inst.dest);
+	    fprintf(stream, "    t%d :", insns[idx].call_inst.dest);
+	    char *tp_ptr = strrchr(target, '_') + 1;
+	    format_type(stream, tp_ptr);
+	    fprintf(stream, " = call ");
 	    format_fun_name(stream, target);
 	  }
 	else
@@ -214,23 +235,6 @@ const char *next_tp(const char *prev_tp)
     } else return *(prev_tp + 1) == '\0' ? 0 : prev_tp + 1;
 }
 
-
-void format_type(FILE *stream, const char *type)
-{
-  if(isdigit(*type))
-    {
-      char *end;
-      size_t depth = strtol(type, &end, 10);
-      for(size_t i = 0; i < depth; ++i)
-	fprintf(stream, "ptr<");
-      fprintf(stream, "%s", base_type_to_string(*end));
-      for(size_t i = 0; i < depth; ++i)
-	putc('>', stream);
-    } else
-    {
-      fprintf(stream, "%s", base_type_to_string(*type));
-    }
-}
 
 void format_fun_header(FILE *stream, const char *fun_name)
 {
