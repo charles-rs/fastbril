@@ -4,85 +4,29 @@
 
 #define TEST_OP(s, o) if(o == op) {return s;}
 
-static inline char *type_to_string(uint16_t op)
-{
-  TEST_OP( "int",    BRILINT);
-  TEST_OP( "bool",   BRILBOOL);
-  TEST_OP( "float",  BRILFLOAT);
-  TEST_OP( "ptr<>",  BRILPTR);
-  return "";
-}
 
-static inline char *base_type_to_string(char tp)
+void format_type(FILE *stream, uint16_t type)
 {
-  switch (tp)
+  uint16_t depth = ptr_depth(type);
+  uint16_t base_tp = base_type(type);
+  for(size_t i = 0; i < depth; ++i)
+    fprintf(stream, "ptr<");
+  switch(base_tp)
     {
-    case 'i': return "int";
-    case 'f': return "float";
-    case 'b': return "bool";
+    case BRILINT:
+      fprintf(stream, "int");
+      break;
+    case BRILBOOL:
+      fprintf(stream, "bool");
+      break;
+    case BRILFLOAT:
+      fprintf(stream, "float");
+      break;
+    case BRILVOID:
+      fprintf(stream, "");
     }
-  return "";
-}
-
-
-static inline char *opcode_to_string(uint16_t op)
-{
-  /* printf("op: %s\n", str); */
-  TEST_OP( "nop",    NOP);
-  TEST_OP( "const",  CONST);
-  TEST_OP( "add",    ADD);
-  TEST_OP( "mul",    MUL);
-  TEST_OP( "mul",    MUL);
-  TEST_OP( "sub",    SUB);
-  TEST_OP( "div",    DIV);
-  TEST_OP( "eq",     EQ);
-  TEST_OP( "lt",     LT);
-  TEST_OP( "gt",     GT);
-  TEST_OP( "le",     LE);
-  TEST_OP( "ge",     GE);
-  TEST_OP( "not",    NOT);
-  TEST_OP( "and",    AND);
-  TEST_OP( "or",     OR);
-  TEST_OP( "jmp",    JMP);
-  TEST_OP( "br",     BR);
-  TEST_OP( "call",   CALL);
-  TEST_OP( "ret",    RET);
-  TEST_OP( "print",  PRINT);
-  TEST_OP( "phi",    PHI);
-  TEST_OP( "alloc",  ALLOC);
-  TEST_OP( "free",   FREE);
-  TEST_OP( "store",  STORE);
-  TEST_OP( "load",   LOAD);
-  TEST_OP( "ptradd", PTRADD);
-  TEST_OP( "fadd",   FADD);
-  TEST_OP( "fmul",   FMUL);
-  TEST_OP( "fsub",   FSUB);
-  TEST_OP( "fdiv",   FDIV);
-  TEST_OP( "feq",    FEQ);
-  TEST_OP( "flt",    FLT);
-  TEST_OP( "fle",    FLE);
-  TEST_OP( "fgt",    FGT);
-  TEST_OP( "fge",    FGE);
-  TEST_OP( "id",     ID);
-  return "";
-}
-
-
-void format_type(FILE *stream, const char *type)
-{
-  if(isdigit(*type))
-    {
-      char *end;
-      size_t depth = strtol(type, &end, 10);
-      for(size_t i = 0; i < depth; ++i)
-	fprintf(stream, "ptr<");
-      fprintf(stream, "%s", base_type_to_string(*end));
-      for(size_t i = 0; i < depth; ++i)
-	putc('>', stream);
-    } else
-    {
-      fprintf(stream, "%s", base_type_to_string(*type));
-    }
+  for(size_t i = 0; i < depth; ++i)
+    putc('>', stream);
 }
 
 
@@ -153,19 +97,18 @@ size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t i
       break;
     case CALL:
       {
-	char *target = prog->funcs[insns[idx].call_inst.target].name;
-	if(insns[idx].call_inst.dest != 0xffff)
+	const function_t *target = &prog->funcs[insns[idx].call_inst.target];
+	if(target->ret_tp != BRILVOID)
 	  {
 	    fprintf(stream, "    t%d :", insns[idx].call_inst.dest);
-	    char *tp_ptr = strrchr(target, '_') + 1;
-	    format_type(stream, tp_ptr);
+	    format_type(stream, target->ret_tp);
 	    fprintf(stream, " = call ");
-	    format_fun_name(stream, target);
+	    format_fun_name(stream, target->name);
 	  }
 	else
 	  {
 	    fprintf(stream, "    call ");
-	    format_fun_name(stream, target);
+	    format_fun_name(stream, target->name);
 	  }
 	uint16_t *args = (uint16_t*) (insns + idx + 1);
 	for(size_t i = 0; i < insns[idx].call_inst.num_args; ++i)
@@ -236,34 +179,22 @@ const char *next_tp(const char *prev_tp)
 }
 
 
-void format_fun_header(FILE *stream, const char *fun_name)
+void format_fun_header(FILE *stream, const function_t *fun)
 {
-  putc('@', stream);
-  char *num = strrchr(fun_name, '_');
-  if(num)
+  fprintf(stream, "@%s(", fun->name);
+  for(size_t a = 0; a < fun->num_args; ++a)
     {
-      const char *ret_tp = num + 1;
-      for(const char *c = fun_name; c != num; ++c)
-	putc(*c, stream);
-      putc('(', stream);
-      size_t a = 0;
-      for(const char *arg_tp = next_tp(ret_tp); arg_tp; arg_tp = next_tp(arg_tp))
-	{
-	  if(a != 0)
-	    fprintf(stream, ", ");
-	  fprintf(stream, "t%ld :", a);
-	  format_type(stream, arg_tp);
-	  ++a;
-	}
-      putc(')', stream);
-      if(*ret_tp != 'v')
-	{
-	  fprintf(stream, " :");
-	  format_type(stream, ret_tp);
-	}
+      if(a != 0)
+	fprintf(stream, ", ");
+      fprintf(stream, "t%ld :", a);
+      format_type(stream, fun->arg_types[a]);
     }
-  else
-    fprintf(stream, "%s", fun_name);
+  putc(')', stream);
+  if(fun->ret_tp != BRILVOID)
+    {
+      fprintf(stream, " :");
+      format_type(stream, fun->ret_tp);
+    }
   putc('\n', stream);
 }
 
@@ -273,7 +204,7 @@ void format_program(FILE *stream, program_t *prog)
   for(size_t f = 0; f < prog->num_funcs; ++f)
     {
       //fprintf(stream, "@%s(", prog->funcs[f].name);
-      format_fun_header(stream, prog->funcs[f].name);
+      format_fun_header(stream, prog->funcs + f);
       /* for(size_t a = 0; a < get_num_args(prog->funcs[f].name); ++a) */
       /* 	{ */
       /* 	  if(a != 0) */

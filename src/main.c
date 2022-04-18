@@ -9,11 +9,13 @@
 #include "byte-io.h"
 #include "interp.h"
 #include "pretty-printer.h"
+#include "emission.h"
 
 #define OUTPUT_BYTECODE 0x0001
 #define COUNT_INSNS     0x0002
 #define NO_INTERPRET    0x0004
 #define PRINT_OUT       0x0008
+#define EMIT_ASM        0x0010
 
 char* get_stdin()
 {
@@ -85,6 +87,8 @@ int main(int argc, char **argv)
 	options |= PRINT_OUT;
       else if(strcmp(argv[i], "-ni") == 0)
 	options |= NO_INTERPRET;
+      else if(strcmp(argv[i], "-e") == 0)
+	options |= EMIT_ASM;
       else
 	{
 	  args[argidx++] = parse_argument(argv[i]);
@@ -104,8 +108,15 @@ int main(int argc, char **argv)
     interp_main(prog, args, argidx, options & COUNT_INSNS);
   if(options & PRINT_OUT)
     format_program(stdout, prog);
+  if(options & EMIT_ASM)
+    {
+      FILE *f = fopen("output.s", "w+");
+      emit_program(f, "unknown.bril", prog);
+      fclose(f);
+    }
   free(string);
   free(root);
+  free(args);
   free_program(prog);
   return 0;
 }

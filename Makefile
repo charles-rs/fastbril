@@ -9,7 +9,7 @@ CONFIGS := $(shell find ./config/ -name "*.cf")
 GEN_HEAD := $(shell for FILE in $(CONFIGS); do echo $$FILE | awk -F'[/.]' '{printf "src/%s.h\n", $$4}'; done)
 GEN_TEX := $(shell for FILE in $(CONFIGS); do echo $$FILE | awk -F'[/.]' '{printf "doc/%s.tex\n", $$4}'; done)
 
-SRCS := $(shell find $(SRC_DIRS) -name *.cpp -or -name *.c -or -name *.s)
+SRCS := $(shell find $(SRC_DIRS) -name *.c)
 
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
@@ -30,13 +30,13 @@ debug: $(BUILD_DIR)/$(TARGET_EXEC)
 release: CFLAGS += -O3
 release: $(BUILD_DIR)/$(TARGET_EXEC)
 
-$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
+$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS) lib/lib.o
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
-# assembly
-$(BUILD_DIR)/%.s.o: %.s
-	$(MKDIR_P) $(dir $@)
-	$(AS) $(ASFLAGS) -c $< -o $@
+# # assembly
+# $(BUILD_DIR)/%.s.o: %.s
+# 	$(MKDIR_P) $(dir $@)
+# 	$(AS) $(ASFLAGS) -c $< -o $@
 
 # c source
 $(BUILD_DIR)/%.c.o: %.c | $(GEN_HEAD)
@@ -50,6 +50,9 @@ $(GEN_HEAD): $(CONFIGS) srcgen.sh srcgen.awk
 brb.pdf: $(GEN_TEX) $(DOC_DIR)/main.tex
 	cd $(DOC_DIR) && latex -output-format=pdf main.tex && mv main.pdf brb.pdf
 
+lib/lib.o: lib/lib.c
+	cd lib && $(CC) -O3 -c lib.c
+
 doc: brb.pdf
 
 $(GEN_TEX): $(configs) docgen.sh docgen.awk
@@ -59,7 +62,7 @@ $(GEN_TEX): $(configs) docgen.sh docgen.awk
 .PHONY: clean
 
 clean:
-	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o -name | xargs rm || true
+	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" | xargs rm || true
 	$(RM) $(GEN_HEAD)
 	$(RM) -r $(BUILD_DIR)
 

@@ -5,6 +5,9 @@
 void output_function(function_t *func, FILE *dest)
 {
   fprintf(dest, "%s\n", func->name);
+  fwrite(&func->num_args, sizeof(size_t), 1, dest);
+  fwrite(func->arg_types, sizeof(briltp), func->num_args, dest);
+  fwrite(&func->ret_tp, sizeof(briltp), 1, dest);
   fwrite(&func->num_insns, sizeof(size_t), 1, dest);
   fwrite(&func->num_tmps, sizeof(size_t), 1, dest);
   fwrite(func->insns, sizeof(instruction_t), func->num_insns, dest);
@@ -25,6 +28,10 @@ void read_function(function_t *dest, FILE *source)
   char *name = malloc(512); /* don't make function names longer than this lmao */
   fscanf(source, "%s\n", name);
   dest->name = name;
+  fread(&dest->num_args, sizeof(size_t), 1, source);
+  dest->arg_types = malloc(sizeof(briltp) * dest->num_args);
+  fread(dest->arg_types, sizeof(briltp), dest->num_args, source);
+  fread(&dest->ret_tp, sizeof(briltp), 1, source);
   fread(&dest->num_insns, sizeof(size_t), 1, source);
   fread(&dest->num_tmps, sizeof(size_t), 1, source);
   instruction_t *insns = malloc(sizeof(instruction_t) * dest->num_insns);

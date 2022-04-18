@@ -1,3 +1,4 @@
-command = "bril2json < {filename} | ../build/fastbrili -p {args}"
+# command = "bril2json < {filename} | ../build/fastbrili -p {args}"
+command = "bril2json < {filename} | ../build/fastbrili -ni -e ; gcc output.s ../lib/lib.o ; ./a.out {args}"
 output.out = "-"
-output.prof = "2"
+# output.prof = "2"

@@ -16,6 +16,7 @@ void free_program(program_t *prog)
     {
       free(prog->funcs[i].name);
       free(prog->funcs[i].insns);
+      free(prog->funcs[i].arg_types);
     }
   free(prog);
 }
@@ -24,3 +25,57 @@ void free_program(program_t *prog)
 
 char type_to_char[5] = {'i', 'b', 'f', 'p', 'v'};
 
+#define TEST_OP(s, o) if(o == op) {return s;}
+
+char *opcode_to_string(uint16_t op)
+{
+  /* printf("op: %s\n", str); */
+  TEST_OP( "nop",    NOP);
+  TEST_OP( "const",  CONST);
+  TEST_OP( "add",    ADD);
+  TEST_OP( "mul",    MUL);
+  TEST_OP( "mul",    MUL);
+  TEST_OP( "sub",    SUB);
+  TEST_OP( "div",    DIV);
+  TEST_OP( "eq",     EQ);
+  TEST_OP( "lt",     LT);
+  TEST_OP( "gt",     GT);
+  TEST_OP( "le",     LE);
+  TEST_OP( "ge",     GE);
+  TEST_OP( "not",    NOT);
+  TEST_OP( "and",    AND);
+  TEST_OP( "or",     OR);
+  TEST_OP( "jmp",    JMP);
+  TEST_OP( "br",     BR);
+  TEST_OP( "call",   CALL);
+  TEST_OP( "ret",    RET);
+  TEST_OP( "print",  PRINT);
+  TEST_OP( "phi",    PHI);
+  TEST_OP( "alloc",  ALLOC);
+  TEST_OP( "free",   FREE);
+  TEST_OP( "store",  STORE);
+  TEST_OP( "load",   LOAD);
+  TEST_OP( "ptradd", PTRADD);
+  TEST_OP( "fadd",   FADD);
+  TEST_OP( "fmul",   FMUL);
+  TEST_OP( "fsub",   FSUB);
+  TEST_OP( "fdiv",   FDIV);
+  TEST_OP( "feq",    FEQ);
+  TEST_OP( "flt",    FLT);
+  TEST_OP( "fle",    FLE);
+  TEST_OP( "fgt",    FGT);
+  TEST_OP( "fge",    FGE);
+  TEST_OP( "id",     ID);
+  return "";
+}
+
+
+uint16_t ptr_depth(briltp tp)
+{
+  return tp >> 2;
+}
+
+uint16_t base_type(briltp tp)
+{
+  return tp & 0b11;
+}

@@ -141,9 +141,10 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 		  case BRILFLOAT:
 		    printf("%.17g", context[args[2 * a + 1]].float_val);
 		    break;
-		  case BRILPTR:
-		    printf("%p", context[args[2 * a + 1]].ptr_val);
-		    break;
+		    /* TODO SUPPORT POINTER PRINTING */
+		  /* case BRILPTR: */
+		  /*   printf("%p", context[args[2 * a + 1]].ptr_val); */
+		  /*   break; */
 		  default:
 		    fprintf(stderr, "unrecognized type: %d. exiting.\n", args[2 * a]);
 		    exit(1);
@@ -257,7 +258,7 @@ void interp_main(program_t *prog, value_t *args, size_t num_args, bool count_ins
 {
   for(size_t i = 0; i < prog->num_funcs; ++i)
     {
-      if(strncmp(prog->funcs[i].name, "main", 4) == 0)
+      if(strcmp(prog->funcs[i].name, "main") == 0)
 	{
 	  size_t dyn = 0;
 	  interp_fun(prog, &dyn, i, args, num_args);

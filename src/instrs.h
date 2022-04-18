@@ -108,9 +108,15 @@ typedef union instruction
 } instruction_t;
 
 
+typedef uint16_t briltp;
+
+
 typedef struct function
 {
   char *name;
+  size_t num_args;
+  briltp *arg_types;
+  briltp ret_tp;
   size_t num_insns;
   size_t num_tmps;
   instruction_t *insns;
@@ -127,6 +133,12 @@ void free_program(program_t *prog);
 
 uint16_t get_opcode(const instruction_t);
 bool is_labelled(const instruction_t i);
+
+char *opcode_to_string(uint16_t);
+
+
+uint16_t ptr_depth(briltp);
+uint16_t base_type(briltp);
 
 extern char type_to_char[];
 

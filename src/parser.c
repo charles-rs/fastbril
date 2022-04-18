@@ -59,9 +59,16 @@ static inline uint16_t type_of_string(const char *str)
 
 static inline uint16_t type_of_json_value(struct json_value_s *value)
 {
-  if(value->type == json_type_string)
-    return type_of_string(json_value_as_string(value)->string);
-  return BRILPTR;
+  if(value == 0)
+    return BRILVOID;
+  uint16_t ptr_depth = 0;
+  while(value->type == json_type_object)
+    {
+      ++ptr_depth;
+      value = json_value_as_object(value)->start->value;
+    }
+  uint16_t base_tp = type_of_string(json_value_as_string(value)->string);
+  return ptr_depth << 2 | base_tp;
 }
 
 typedef struct string_uint16
@@ -166,7 +173,7 @@ size_t parse_instruction(struct json_object_s *json,
   uint16_t type = 0xffff;
   const char *value = 0;
   const char *fun_nm = 0;
-  
+
   while(field)
     {
       if(strcmp(field->name->string, "op") == 0)
@@ -376,6 +383,16 @@ size_t parse_instruction(struct json_object_s *json,
 	    .arg2 = 0
 	  };
       } break;
+    case ID:
+      {
+	(*insns)[dest].norm_insn = (norm_instruction_t)
+	  {
+	    .opcode_lbled = tagged_opcode,
+	    .dest = insn_dest,
+	    .arg1 = args[0],
+	    .arg2 = type
+	  };
+      } break;
     default:
       {
 	(*insns)[dest].norm_insn = (norm_instruction_t)
@@ -414,7 +431,7 @@ instruction_t *parse_instructions(struct json_array_s* json,
   uint16_t next_labelled = 0;
   uint16_t num_lbls = 0;
   const char **idx_to_lbl = malloc(sizeof(char*) * json->length);
-  for(int i = 0; i < json->length; ++i)
+  for(size_t i = 0; i < json->length; ++i)
     {
       dest = parse_instruction(json_value_as_object(tmp->value), &insns,
 			       dest, &insn_len, &next_labelled,
@@ -573,17 +590,21 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
   //sprintf(enough, "_%d", num_args);
   size_t end_of_name = strlen(fun.name);
   size_t name_len = end_of_name + num_args + 5;
-  fun.name = realloc(fun.name, name_len);
-  fun.name[end_of_name++] = '_';
+  //fun.name = realloc(fun.name, name_len);
+  //fun.name[end_of_name++] = '_';
   //strcpy(fun.name + strlen(fun.name), enough);
   tmp_types = malloc(sizeof(uint16_t) * (num_args + num_instrs));
-  end_of_name = put_type_in_string(&fun.name, ret_tp, end_of_name, &name_len);
+  fun.ret_tp = type_of_json_value(ret_tp);
+  fun.arg_types = malloc(sizeof(uint16_t) * num_args);
+  fun.num_args = 0;
+  //end_of_name = put_type_in_string(&fun.name, ret_tp, end_of_name, &name_len);
   if(args_json)
     {
       struct json_array_element_s *arg = args_json->start;
       /* char *fun_name_tp_ptr = fun.name + strlen(fun.name); */
       /* *fun_name_tp_ptr = '_'; */
       /* ++fun_name_tp_ptr; */
+      size_t argidx = 0;
       while(arg)
 	{
 	  struct json_object_element_s *a = json_value_as_object(arg->value)->start;
@@ -603,18 +624,21 @@ function_t parse_function(struct json_object_s *json, struct hashmap *fun_name_t
 		{
 		  uint16_t tp = type_of_json_value(a->value);
 		  tmp_types[alias] = tp;
-		  end_of_name = put_type_in_string(&fun.name,
-						   a->value, end_of_name,
-						   &name_len);
+		  fun.arg_types[argidx] = tp;
+		  /* end_of_name = put_type_in_string(&fun.name, */
+		  /* 				   a->value, end_of_name, */
+		  /* 				   &name_len); */
 		    //*fun_name_tp_ptr = tp + '0';
 		}
 	      a = a->next;
 	    }
 	  //++fun_name_tp_ptr;
 	  arg = arg->next;
+	  ++argidx;
 	}
+      fun.num_args = argidx;
       //*fun_name_tp_ptr = '\0';
-      fun.name[name_len] = '\0';
+      /* fun.name[name_len] = '\0'; */
     }
   size_t num_words;
   /* printf("supposedly there are %d args\n", num_temps); */
