@@ -64,6 +64,7 @@ $(GEN_TEX): $(configs) docgen.sh docgen.awk
 clean:
 	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" | xargs rm || true
 	$(RM) $(GEN_HEAD)
+	$(RM) $(GEN_TEX)
 	$(RM) -r $(BUILD_DIR)
 
 -include $(DEPS)
