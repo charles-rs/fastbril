@@ -6,13 +6,8 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 		       value_t *context, uint16_t *labels,
 		       size_t *dyn_insns, size_t which_insn)
 {
-  /* printf("entering: %s\n", prog->funcs[which_fun].name); */
   while(which_insn < prog->funcs[which_fun].num_insns)
     {
-      /* printf("ctxt(%s): ", prog->funcs[which_fun].name); */
-      /* for(size_t i = 0; i < prog->funcs[which_fun].num_tmps; ++i) */
-      /* 	printf("%ld ", context[i].int_val); */
-      /* printf("\n"); */
       instruction_t *i = prog->funcs[which_fun].insns + which_insn;
       size_t next_insn = which_insn + 1;
       ++*dyn_insns;
@@ -21,9 +16,6 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 	  labels[1] = labels[0];
 	  labels[0] = which_insn;
 	}
-      //      printf("opcode: %d\narg1: %ld\n", get_opcode(i), context[i.norm_insn.arg1].int_val);
-      /* printf("opcode: %d\narg1: %d\ndest: %d\n", get_opcode(i), i.norm_insn.arg1, i.norm_insn.dest); */
-      /* printf("%s\ninsn: %ld\n", prog->funcs[which_fun].name, which_insn); */
       switch(get_opcode(*i))
 	{
 	case CONST:
@@ -63,8 +55,6 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 	  context[i->norm_insn.dest] = (value_t)
 	    {.int_val = context[i->norm_insn.arg1].int_val <
 	     context[i->norm_insn.arg2].int_val ? 1 : 0};
-	  /* printf("lt: %ld %ld %ld\n", context[i->norm_insn.arg1].int_val, */
-	  /* 	 context[i->norm_insn.arg2].int_val,context[i->norm_insn.dest].int_val); */
 	  break;
 	case GT:
 	  context[i->norm_insn.dest] = (value_t)
@@ -108,17 +98,14 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 	    for(size_t a = 0; a < i->call_inst.num_args; ++a)
 	      args[a] = context[prog->funcs[which_fun].insns[which_insn + 1 + a / 4]
 				.call_args.args[a % 4]];
-	    /* printf("first arg is: %ld\n", args[0].int_val); */
 	    next_insn += (i->call_inst.num_args + 3) / 4;
 	    value_t tmp = interp_fun(prog, dyn_insns, i->call_inst.target,
 				     args, i->call_inst.num_args);
 	    if(i->call_inst.dest != 0xffff)
 	      context[i->call_inst.dest] = tmp;
-	    /* printf("returning to %s\n", prog->funcs[which_fun].name); */
 	    break;
 	  }
 	case RET:
-	  /* printf("RET  INSN\n"); */
 	  if(i->norm_insn.arg1 == 0xffff)
 	    return (value_t) {.int_val = 0xffffffffffffffff};
 	  else
@@ -141,10 +128,6 @@ value_t interpret_insn(program_t  *prog, size_t which_fun,
 		  case BRILFLOAT:
 		    printf("%.17g", context[args[2 * a + 1]].float_val);
 		    break;
-		    /* TODO SUPPORT POINTER PRINTING */
-		  /* case BRILPTR: */
-		  /*   printf("%p", context[args[2 * a + 1]].ptr_val); */
-		  /*   break; */
 		  default:
 		    fprintf(stderr, "unrecognized type: %d. exiting.\n", args[2 * a]);
 		    exit(1);
@@ -280,6 +263,5 @@ value_t interp_fun(program_t *prog, size_t *dyn_insns,
   memcpy(context, args, sizeof(value_t) * num_args);
   value_t tmp = interpret_insn(prog, which_fun, context, labels, dyn_insns, 0);
   free(context);
-  //printf("returning %ld\n", tmp.int_val);
   return tmp;
 }

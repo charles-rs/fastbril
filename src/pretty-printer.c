@@ -4,7 +4,9 @@
 
 #define TEST_OP(s, o) if(o == op) {return s;}
 
-
+/**
+ * pretty prints type to stream
+ */
 void format_type(FILE *stream, uint16_t type)
 {
   uint16_t depth = ptr_depth(type);
@@ -29,7 +31,9 @@ void format_type(FILE *stream, uint16_t type)
     putc('>', stream);
 }
 
-
+/**
+ * formats a function name to stream
+ */
 void format_fun_name(FILE *stream, const char *fun_name)
 {
   putc('@', stream);
@@ -42,7 +46,6 @@ void format_fun_name(FILE *stream, const char *fun_name)
   else
     fprintf(stream, "%s", fun_name);
 }
-
 
 
 size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t idx)
@@ -162,23 +165,9 @@ size_t format_insn(FILE *stream, program_t *prog, instruction_t *insns, size_t i
   return idx + 1;
 }
 
-size_t get_num_args(const char *fun_name)
-{
-  char *num = strrchr(fun_name, '_');
-  return num == 0 ? 0 : strlen(num + 1);
-}
-
-const char *next_tp(const char *prev_tp)
-{
-  if(isdigit(*prev_tp))
-    {
-      char *end;
-      strtol(prev_tp, &end, 10);
-      return *(end + 1) == '\0' ? 0 : end + 1;
-    } else return *(prev_tp + 1) == '\0' ? 0 : prev_tp + 1;
-}
-
-
+/**
+ * formats the header of fun to stream
+ */
 void format_fun_header(FILE *stream, const function_t *fun)
 {
   fprintf(stream, "@%s(", fun->name);
@@ -203,14 +192,7 @@ void format_program(FILE *stream, program_t *prog)
 {
   for(size_t f = 0; f < prog->num_funcs; ++f)
     {
-      //fprintf(stream, "@%s(", prog->funcs[f].name);
       format_fun_header(stream, prog->funcs + f);
-      /* for(size_t a = 0; a < get_num_args(prog->funcs[f].name); ++a) */
-      /* 	{ */
-      /* 	  if(a != 0) */
-      /* 	    fprintf(stream, ", "); */
-      /* 	  fprintf(stream, "t%ld", a); */
-      /* 	} */
       fprintf(stream, "  {\n");
       size_t idx = 0;
       while(idx < prog->funcs[f].num_insns)

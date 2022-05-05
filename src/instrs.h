@@ -9,6 +9,9 @@
 #include "mem.h"
 #include "ssa.h"
 #include "types.h"
+/**
+ * see the documentation for instruction layouts
+ */
 
 typedef struct norm_instruction
 {
@@ -108,8 +111,8 @@ typedef union instruction
 } instruction_t;
 
 
-typedef uint16_t briltp;
 
+typedef uint16_t briltp;
 
 typedef struct function
 {
@@ -131,9 +134,15 @@ typedef struct program
 
 void free_program(program_t *prog);
 
+/**
+ * convenience functions for bit fiddling
+ */
 uint16_t get_opcode(const instruction_t);
 bool is_labelled(const instruction_t i);
 
+/**
+ * take an encoded opcode and go back to the original string representation
+ */
 char *opcode_to_string(uint16_t);
 
 

@@ -26,10 +26,12 @@ void free_program(program_t *prog)
 char type_to_char[5] = {'i', 'b', 'f', 'p', 'v'};
 
 #define TEST_OP(s, o) if(o == op) {return s;}
-
+/**
+ * this COULD be an array lookup, but this option gives more flexibility,
+ * and the performance hit is only in parsing
+ */
 char *opcode_to_string(uint16_t op)
 {
-  /* printf("op: %s\n", str); */
   TEST_OP( "nop",    NOP);
   TEST_OP( "const",  CONST);
   TEST_OP( "add",    ADD);

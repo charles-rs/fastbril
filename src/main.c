@@ -11,12 +11,16 @@
 #include "pretty-printer.h"
 #include "emission.h"
 
+/* Bit masks for cmd flags/modes */
 #define OUTPUT_BYTECODE 0x0001
 #define COUNT_INSNS     0x0002
 #define NO_INTERPRET    0x0004
 #define PRINT_OUT       0x0008
 #define EMIT_ASM        0x0010
 
+/**
+ * read the contents of stdin and return a single heap allocated string.
+ */
 char* get_stdin()
 {
   size_t buf_len = 128;
@@ -24,7 +28,6 @@ char* get_stdin()
   size_t i = 0;
   while(true)
     {
-      //      printf("%s", buffer);
       if(i == buf_len - 1)
 	{
 	  buf_len *= 2;
@@ -42,6 +45,9 @@ char* get_stdin()
   return buffer;
 }
 
+/**
+ * turn a string into a value_t that can be used by the interpreter
+ */
 value_t parse_argument(const char *str)
 {
   if(strcmp(str, "true") == 0)

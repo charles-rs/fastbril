@@ -1,13 +1,17 @@
 #include "emission.h"
 #include <string.h>
 
-#ifdef __x86_54__
+/* macro system means we will emit x86 on x86 arch and arm on arm arch */
+#ifdef __x86_64__
 
 /* TODO Susan implement */
 void emit_program(FILE *stream, const char *src_file, program_t *prog){}
 
 #elif __ARM_ARCH
 
+/**
+ * convenience functions for common instructions
+ */
 static inline void load(FILE *stream, int reg, uint16_t dest)
 {
   fprintf(stream, "\tldr\tx%d, [sp, %d]\n", reg, 16 + dest * 8);
@@ -50,6 +54,9 @@ static inline int max(int a, int b)
   return a > b ? a : b;
 }
 
+/**
+ * translate bril opcode to armv8 float compare flag
+ */
 static inline char* fpcflag(uint16_t opcode)
 {
   switch(opcode)
@@ -62,7 +69,9 @@ static inline char* fpcflag(uint16_t opcode)
     }
 }
 
-
+/**
+ * emits asm to store dest <- value
+ */
 void emit_constant(FILE *stream, uint16_t dest, int64_t value)
 {
   fprintf(stream, "\tmov\tx0, %ld\n", value & 0xffff);
@@ -77,6 +86,11 @@ void emit_constant(FILE *stream, uint16_t dest, int64_t value)
   store(stream, 0, dest);
 }
 
+/**
+ * iterate over the instructions of the function of prog at index
+ * which_fun, and emit the instructions for the body. Does not do
+ * any prologue/epilogue
+ */
 void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 {
   function_t f = prog->funcs[which_fun];
@@ -202,13 +216,10 @@ void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 	      }
 	    int norm_stack_needed = max((norm_args - 9) * 8, 0);
 	    int float_stack_needed = max((float_args - 8) * 8, 0);
-	    /* printf("norm stack: %d\nfloat stack: %d\n", norm_stack_needed, float_stack_needed); */
 	    int stack_needed = norm_stack_needed + float_stack_needed;
-	    /* if(stack_needed < 0) stack_needed = 0; */
 	    if(stack_needed % 16 != 0) stack_needed += 8;
 	    if(stack_needed)
 	      fprintf(stream, "\tsub\tsp, sp, %d\n", stack_needed);
-	    // printf("calling %s with %d args\n", fun->name, norm_args);
 	    int norm_args_left = norm_args;
 	    int float_args_left = float_args;
 	    if(num_args != fun->num_args)
@@ -240,8 +251,6 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 			fprintf(stream, "\tstr\tx0, [sp, %d]\n", stack_args_left * 8);
 		      } else
 		      {
-			/* printf("arg: %d\n", args[argidx]); */
-			/* printf("stack needed: %ld\n", stack_needed); */
 			load(stream, norm_args_left - 1,
 			     args[argidx] + stack_needed / 8);
 		      }
@@ -329,19 +338,18 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 }
 
 
+/**
+ * emit asm for which_fun in prog to stream.
+ */
 void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 {
   function_t f = prog->funcs[which_fun];
   size_t stack_offset = 8 * f.num_tmps + 8;
-  /* size_t stack_offset = (f.num_tmps + 1) & 1 ? f.num_tmps * 8 + 16 */
-  /*   : f.num_tmps * 8 + 8; */
   bool is_main = strcmp(f.name, "main") == 0;
   if(is_main && f.num_args != 0)
     stack_offset += 8;
   if(stack_offset % 16 != 0)
     stack_offset += 8;
-  //  printf("offset: %ld\n", stack_offset);
-    
   fprintf(stream, "\t.global %s\n", f.name);
   fprintf(stream, "\t.type\t%s, %%function\n", f.name);
   fprintf(stream, "%s:\n", f.name);
@@ -391,10 +399,8 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 		++double_args;
 	      else
 		{
-		  /* printf("spilled so far: %ld\n", spilled_args); */
-		  /* printf("offset: %ld\n", stack_offset); */
-		  // fload(stream, 9, offset);
-		  fprintf(stream, "\tldr\td9, [sp, %ld]\n", stack_offset + 8 * spilled_args++);
+		  fprintf(stream, "\tldr\td9, [sp, %ld]\n",
+			  stack_offset + 8 * spilled_args++);
 		  fstore(stream, 9, ++double_args);
 		}
 	    } else
@@ -403,9 +409,8 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 		++other_args;
 	      else
 		{
-		  /* printf("spilled so far: %ld\n", spilled_args); */
-		  /* printf("offset: %ld\n", stack_offset); */
-		  fprintf(stream, "\tldr\tx9, [sp, %ld]\n", stack_offset + 8 * spilled_args++);
+		  fprintf(stream, "\tldr\tx9, [sp, %ld]\n",
+			  stack_offset + 8 * spilled_args++);
 		  store(stream, 9, ++other_args);
 		}
 	    }
@@ -445,7 +450,6 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 void emit_program(FILE *stream, const char *src_file, program_t *prog)
 {
   fprintf(stream, "\t.arch armv8-a\n");
-  //fprintf(stream, "\t.file\t\"%s\"\n", src_file);
   fprintf(stream, "\t.text\n");
   for(size_t i = 0; i < prog->num_funcs; ++i)
     emit_function(stream, prog, i);
