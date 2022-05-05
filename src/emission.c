@@ -44,6 +44,12 @@ static inline void mov(FILE *stream, const char *dest, const char *src)
   fprintf(stream, "\tmov\t%s, %s\n", dest, src);
 }
 
+
+static inline int max(int a, int b)
+{
+  return a > b ? a : b;
+}
+
 static inline char* fpcflag(uint16_t opcode)
 {
   switch(opcode)
@@ -87,9 +93,6 @@ void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 	  break;
 	case CONST:
 	  emit_constant(stream, insn->const_insn.dest, insn->const_insn.value);
-	  //TODO deal with large constants correctly
-	  /* fprintf(stream, "\tmov\tx0, %d\n", insn->const_insn.value); */
-	  /* store(stream, 0, insn->const_insn.dest); */
 	  break;
 	case LCONST:
 	  emit_constant(stream, insn->long_const_insn.dest, (insn + 1)->const_ext.int_val);
@@ -193,18 +196,19 @@ void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 	    int norm_args = 0, float_args = 0;
 	    for(size_t i = 0; i < fun->num_args; ++i)
 	      {
-		if(base_type(fun->arg_types[i]) == BRILFLOAT)
+		if(fun->arg_types[i] == BRILFLOAT)
 		  ++float_args;
 		else ++norm_args;
 	      }
-	    int norm_stack_needed = (norm_args - 8) * 8;
-	    int float_stack_needed = (float_args - 8) * 8;
+	    int norm_stack_needed = max((norm_args - 9) * 8, 0);
+	    int float_stack_needed = max((float_args - 8) * 8, 0);
+	    /* printf("norm stack: %d\nfloat stack: %d\n", norm_stack_needed, float_stack_needed); */
 	    int stack_needed = norm_stack_needed + float_stack_needed;
-	    if(stack_needed < 0) stack_needed = 0;
+	    /* if(stack_needed < 0) stack_needed = 0; */
 	    if(stack_needed % 16 != 0) stack_needed += 8;
 	    if(stack_needed)
 	      fprintf(stream, "\tsub\tsp, sp, %d\n", stack_needed);
-
+	    // printf("calling %s with %d args\n", fun->name, norm_args);
 	    int norm_args_left = norm_args;
 	    int float_args_left = float_args;
 	    if(num_args != fun->num_args)
@@ -213,6 +217,7 @@ void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 		exit(1);
 	      }
+	    int stack_args_left = max(norm_args - 9, 0) + max(float_args - 8, 0) - 1;
 	    for(int argidx = num_args - 1; argidx >= 0; --argidx)
 	      {
 		if(fun->arg_types[argidx] == BRILFLOAT)
@@ -220,7 +225,7 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 		    if(float_args_left > 8)
 		      {
 			fload(stream, 0, args[argidx] + stack_needed / 8);
-			fprintf(stream, "\tstr\td0, [sp, %d]\n", argidx);
+			fprintf(stream, "\tstr\td0, [sp, %d]\n", stack_args_left * 8);
 		      } else
 		      {
 			fload(stream, float_args_left - 1,
@@ -229,17 +234,20 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 		    --float_args_left;
 		  } else
 		  {
-		    if(norm_args_left > 8)
+		    if(norm_args_left > 9)
 		      {
 			load(stream, 0, args[argidx] + stack_needed / 8);
-			fprintf(stream, "\tstr\tx0, [sp, %d]\n", argidx);
+			fprintf(stream, "\tstr\tx0, [sp, %d]\n", stack_args_left * 8);
 		      } else
 		      {
+			/* printf("arg: %d\n", args[argidx]); */
+			/* printf("stack needed: %ld\n", stack_needed); */
 			load(stream, norm_args_left - 1,
 			     args[argidx] + stack_needed / 8);
 		      }
 		    --norm_args_left;
 		  }
+		--stack_args_left;
 	      }
 	    fprintf(stream, "\tbl\t%s\n",
 		    prog->funcs[insn->call_inst.target].name);
@@ -249,13 +257,20 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 	      fstore(stream, 0, insn->call_inst.dest);
 	    else if(fun->ret_tp != BRILVOID)
 	      store(stream, 0, insn->call_inst.dest);
-	    /* TODO move result into temp */
 	    i += (num_args + 3) / 4;
 	  }
 	  break;
 	case RET:
-	  if(insn->norm_insn.arg1 != 0xffff)
-	    load(stream, 0, insn->norm_insn.arg1);
+	  switch(f.ret_tp)
+	    {
+	    case BRILVOID:
+	      break;
+	    case BRILFLOAT:
+	      fload(stream, 0, insn->norm_insn.arg1);
+	      break;
+	    default:
+	      load(stream, 0, insn->norm_insn.arg1);
+	    }
 	  fprintf(stream, "\tb\t.L%s.ret\n", f.name);
 	  break;
 	case JMP:
@@ -276,6 +291,35 @@ expected %ld.Exiting.\n", fun->name, num_args, fun->num_args);
 	      load(stream, 0, insn->norm_insn.arg1);
 	      store(stream, 0, insn->norm_insn.dest);
 	    }
+	  break;
+	case ALLOC:
+	  load(stream, 0, insn->norm_insn.arg1);
+	  fprintf(stream, "\tlsl\tx0, x0, 3\n");
+	  fprintf(stream, "\tbl\tmalloc\n");
+	  store(stream, 0, insn->norm_insn.dest);
+	  break;
+	case FREE:
+	  load(stream, 0, insn->norm_insn.arg1);
+	  fprintf(stream, "\tbl\tfree\n");
+	  break;
+	case STORE:
+	  /* pointer */
+	  load(stream, 0, insn->norm_insn.arg1);
+	  /* value */
+	  load(stream, 1, insn->norm_insn.arg2);
+	  fprintf(stream, "\tstr\tx1, [x0]\n");
+	  break;
+	case LOAD:
+	  /* pointer */
+	  load(stream, 0, insn->norm_insn.arg1);
+	  fprintf(stream, "\tldr\tx0, [x0]\n");
+	  store(stream, 0, insn->norm_insn.dest);
+	  break;
+	case PTRADD:
+	  load(stream, 0, insn->norm_insn.arg1);
+	  load(stream, 1, insn->norm_insn.arg2);
+	  fprintf(stream, "\tadd\tx0, x0, x1, lsl 3\n");
+	  store(stream, 0, insn->norm_insn.dest);
 	  break;
 	default:
 	  fprintf(stderr, "unsupported opcode: %d\n", opcode);
@@ -301,7 +345,13 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
   fprintf(stream, "\t.global %s\n", f.name);
   fprintf(stream, "\t.type\t%s, %%function\n", f.name);
   fprintf(stream, "%s:\n", f.name);
-  fprintf(stream, "\tstp\tx29, x30, [sp, -%ld]!\n", stack_offset);
+  if(stack_offset < 512)
+    fprintf(stream, "\tstp\tx29, x30, [sp, -%ld]!\n", stack_offset);
+  else
+    {
+      fprintf(stream, "\tsub\tsp, sp, %ld\n", stack_offset);
+      fprintf(stream, "\tstp\tx29, x30, [sp]\n");
+    }
   mov(stream, "x29", "sp");
   if(is_main && f.num_args != 0)
     {
@@ -337,22 +387,26 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 	{
 	  if(f.arg_types[i] == BRILFLOAT)
 	    {
-	      if(double_args < 9)
+	      if(double_args < 7)
 		++double_args;
 	      else
 		{
-		  size_t offset = stack_offset + spilled_args++;
-		  fload(stream, 0, offset);
-		  fstore(stream, 0, double_args++);
+		  /* printf("spilled so far: %ld\n", spilled_args); */
+		  /* printf("offset: %ld\n", stack_offset); */
+		  // fload(stream, 9, offset);
+		  fprintf(stream, "\tldr\td9, [sp, %ld]\n", stack_offset + 8 * spilled_args++);
+		  fstore(stream, 9, ++double_args);
 		}
 	    } else
 	    {
-	      if(other_args < 9)
+	      if(other_args < 8)
 		++other_args;
 	      else
 		{
-		  load(stream, 0, stack_offset + spilled_args++);
-		  store(stream, 0, other_args++);
+		  /* printf("spilled so far: %ld\n", spilled_args); */
+		  /* printf("offset: %ld\n", stack_offset); */
+		  fprintf(stream, "\tldr\tx9, [sp, %ld]\n", stack_offset + 8 * spilled_args++);
+		  store(stream, 9, ++other_args);
 		}
 	    }
 	}
@@ -362,7 +416,7 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 	{
 	  if(f.arg_types[i] == BRILFLOAT)
 	    {
-	      if(double_args < 9)
+	      if(double_args < 8)
 		fstore(stream, double_args++, i);
 	    } else
 	    {
@@ -378,7 +432,13 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
     fprintf(stream, "\tldr\tx19, [sp, %ld]\n", stack_offset - 16);
   if(is_main && f.ret_tp == BRILVOID)
     mov(stream, "w0", "0");
-  fprintf(stream, "\tldp\tx29, x30, [sp], %ld\n", stack_offset);
+  if(stack_offset < 512)
+    fprintf(stream, "\tldp\tx29, x30, [sp], %ld\n", stack_offset);
+  else
+    {
+      fprintf(stream, "\tldp\tx29, x30, [sp]\n");
+      fprintf(stream, "\tadd\tsp, sp, %ld\n", stack_offset);
+    }
   fprintf(stream, "\tret\n");
    }
 

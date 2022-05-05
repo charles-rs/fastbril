@@ -25,6 +25,17 @@ CFLAGS += $(INC_FLAGS) -std=c11
 debug: CFLAGS += -g -Og
 debug: $(BUILD_DIR)/$(TARGET_EXEC)
 
+.PHONY: coverage
+
+coverage: CFLAGS += --coverage -DDEBUG -g3
+coverage: $(GEN_HEAD)
+	mkdir $(BUILD_DIR) && cd $(BUILD_DIR) && $(CC) $(CFLAGS) $(abspath $(SRCS)) -o $(TARGET_EXEC)
+
+.PHONY: cov-report
+
+cov-report:
+	gcovr -r . --html --html-details -o cov-report/out.html
+
 .PHONY: release
 
 release: CFLAGS += -O3
@@ -62,7 +73,8 @@ $(GEN_TEX): $(configs) docgen.sh docgen.awk
 .PHONY: clean
 
 clean:
-	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" | xargs rm || true
+	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o \
+	-name "*.gcda" -o -name "*.gcno" | xargs rm || true
 	$(RM) $(GEN_HEAD)
 	$(RM) -r $(BUILD_DIR)
 
