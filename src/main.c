@@ -17,6 +17,7 @@
 #define NO_INTERPRET    0x0004
 #define PRINT_OUT       0x0008
 #define EMIT_ASM        0x0010
+#define READ_BYTECODE   0x0020
 
 /**
  * read the contents of stdin and return a single heap allocated string.
@@ -77,36 +78,49 @@ value_t parse_argument(const char *str)
 int main(int argc, char **argv)
 {
   long options = 0;
-  char *out_file;
+  char *bout_file = 0, *out_file = 0;
   value_t *args = malloc(sizeof(value_t) * argc);
   size_t argidx = 0;
   for(int i = 1; i < argc; ++i)
     {
       if(strcmp(argv[i], "-p") == 0)
 	options |= COUNT_INSNS;
+      else if(strcmp(argv[i], "-b") == 0)
+	options |= READ_BYTECODE;
       else if(strcmp(argv[i], "-bo") == 0)
 	{
 	  options |= OUTPUT_BYTECODE;
-	  out_file = argv[++i];
+	  bout_file = i + 1 < argc ? argv[++i] : 0;
 	}
       else if(strcmp(argv[i], "-pr") == 0)
 	options |= PRINT_OUT;
       else if(strcmp(argv[i], "-ni") == 0)
 	options |= NO_INTERPRET;
       else if(strcmp(argv[i], "-e") == 0)
-	options |= EMIT_ASM;
+	{
+	  options |= EMIT_ASM;
+	  out_file = i + 1 < argc ? argv[++i] : 0;
+	}
       else
 	{
 	  args[argidx++] = parse_argument(argv[i]);
 	}
     }
-  char *string = get_stdin();
-  struct json_value_s *root = json_parse(string, strlen(string));
-  struct json_object_s *functions = root->payload;
-  program_t *prog = parse_program(functions);
+  program_t *prog;
+  char *string = 0;
+  struct json_value_s *root = 0;
+  if(options & READ_BYTECODE)
+    prog = read_program(stdin);
+  else
+    {
+      string = get_stdin();
+      root = json_parse(string, strlen(string));
+      struct json_object_s *functions = root->payload;
+      prog = parse_program(functions);
+    }
   if(options & OUTPUT_BYTECODE)
     {
-      FILE *f = fopen("my-output", "w+");
+      FILE *f = fopen(bout_file ? bout_file : "my-output", "w+");
       output_program(prog, f);
       fclose(f);
     }
@@ -116,7 +130,7 @@ int main(int argc, char **argv)
     format_program(stdout, prog);
   if(options & EMIT_ASM)
     {
-      FILE *f = fopen("output.s", "w+");
+      FILE *f = fopen(out_file ? out_file : "output.s", "w+");
       emit_program(f, "unknown.bril", prog);
       fclose(f);
     }

@@ -25,7 +25,7 @@ void format_type(FILE *stream, uint16_t type)
       fprintf(stream, "float");
       break;
     case BRILVOID:
-      fprintf(stream, "");
+      break;
     }
   for(size_t i = 0; i < depth; ++i)
     putc('>', stream);
