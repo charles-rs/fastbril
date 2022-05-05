@@ -60,8 +60,41 @@ arguments. This works for all instructions of the form
 \[
   \texttt{dest} := \texttt{arg1}\ op\ \texttt{arg2}
 \]
-There are however other formats.
-\section{Branch instructions}
+There are however other formats.\footnote{Not EVERY instruction uses the second
+  argument, such as the \texttt{not} instruction, so in this case the second
+  argument is undefined.}
+\section{Types}
+\label{sec:types}
+We can represent the \bril{} types \texttt{int}, \texttt{float}, \texttt{bool},
+\texttt{void}, and arbitrarily nested pointers to these. The 2 bit encodings for
+base types are in appendix \ref{app:types}.
+\begin{center}
+  \begin{tabular}{r|c|c|}
+    \cline{2-3}
+    & \texttt{ptr depth} & \texttt{base type}\\ \cline{2-3}
+    Size(bits) & 14 & 2
+  \end{tabular}
+\end{center}
+This means something like \texttt{ptr<ptr<ptr<bool>>>} would be represented as
+\texttt{0b1101}. The right two bits are the base type, and the rest to the left
+is how many \texttt{ptr} there are.
+
+\section{ID instruction}
+The \texttt{ID} instruction only has one argument and a destination, leaving us
+16 bits unused. However, in order to facilitate translation back to the original
+\bril{} code, we need to be able to write down types, and \texttt{ID} is a
+polymorphic instruction, so we hold the type in this last slot, giving this
+layout:
+\begin{center}
+  \begin{tabular}{r|c|c|c|c|c|}
+    \cline{2-6}
+    & \texttt{labelled} & \texttt{opcode} & \texttt{dest} & \texttt{arg}
+    & \texttt{type} \\ \cline{2-6}
+    Size (bits): & 1 & 15 & 16 & 16 & 16 \\ \cline{2-6}
+  \end{tabular}
+\end{center}
+
+\section{Branch Instructions}
 Branches are the simplest instructions that don't fit into the ``base'' format,
 and are laid out as follows:\\
 \begin{center}
@@ -139,7 +172,7 @@ of which are used. These are represented as temps.
 \Bril{} also includes a fairly high level \texttt{print} instruction, which
 deals with it's arguments differently depending on their types. In order to
 encode this, we need to have an encoding for the types supported by \bril{},
-which we provide in appendix \ref{app:types}. The first word of a \texttt{print}
+which we provide in section \ref{sec:types}. The first word of a \texttt{print}
 is encoded as follows:
 \begin{center}
   \begin{tabular}{r|c|c|c|c|c|}

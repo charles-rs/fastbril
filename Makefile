@@ -76,6 +76,7 @@ clean:
 	find . -name "*.aux" -o -name "*.log" -o -name "*.pdf" -o -name  "*~" -o \
 	-name "*.gcda" -o -name "*.gcno" | xargs rm || true
 	$(RM) $(GEN_HEAD)
+	$(RM) $(GEN_TEX)
 	$(RM) -r $(BUILD_DIR)
 
 -include $(DEPS)
