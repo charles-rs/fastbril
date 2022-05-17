@@ -23,6 +23,12 @@ static inline arm_arg_tagged_t from_const(int16_t num)
   return (arm_arg_tagged_t) {.type = CNST, .value = (arm_arg_t) {.cnst = num}};
 }
 
+static inline arm_arg_tagged_t from_uconst(uint16_t num)
+{
+  return (arm_arg_tagged_t) {.type = CNST, .value = (arm_arg_t) {.cnst = num}};
+}
+
+
 static inline int max(int a, int b)
 {
   return a > b ? a : b;
@@ -141,7 +147,7 @@ void trans_const(FILE *insn_stream,
 				  .value = (arm_insn_t)
 				  {.mov = (mov_arm_insn_t)
 				   {.dest = from_reg(X0),
-				    .src = from_const(value & 0xffff)}}},
+				    .src = from_uconst(value & 0xffff)}}},
     insn_stream);
   int64_t tmp = value >> 16;
   for(size_t i = 1; i  < 4; ++i)
@@ -525,6 +531,7 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 			.address = from_reg(X0),
 			.offset = insn.value.ldr.offset}}}, insn_stream);
 	  write_insn(movd(insn.value.ldr.dest, X0), insn_stream);
+	  break;
 	case ASTR:
 	  write_insn(mov(X0, insn.value.str.value), insn_stream);
 	  write_insn(mov(X1, insn.value.str.address), insn_stream);
@@ -534,6 +541,7 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 		       {.value = from_reg(X0),
 			.address = from_reg(X1),
 			.offset = insn.value.str.offset}}}, insn_stream);
+	  break;
 	case AMOVK:
 	case AOTHER:
 	case ACALL:

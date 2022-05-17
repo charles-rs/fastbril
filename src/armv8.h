@@ -69,7 +69,7 @@ typedef struct mov_arm_insn
 typedef struct movk_arm_insn
 {
   arm_arg_tagged_t dest;
-  int16_t val;
+  uint16_t val;
   uint16_t lsl;
 } movk_arm_insn_t;
 
