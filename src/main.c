@@ -136,8 +136,8 @@ int main(int argc, char **argv)
       FILE *f = fopen(out_file ? out_file : "output.s", "w+");
       asm_prog_t p = bytecode_to_abs_asm(prog);
       asm_prog_t allocd = triv_allocate(p);
-      free_asm_prog(p);
-      emit_insns(f, &allocd);
+      //free_asm_prog(p);
+      emit_insns(f, &p);
       //emit_program(f, "unknown.bril", prog);
       fclose(f);
     }

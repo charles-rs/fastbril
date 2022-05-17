@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 
-#define __ARM_ARCH //DEBUGGING ON X86!!!!
+//#define __ARM_ARCH //DEBUGGING ON X86!!!!
 #ifdef __ARM_ARCH
 #include "armv8.h"
 
@@ -223,4 +223,5 @@ void free_asm_prog(asm_prog_t prog)
 {
   for(size_t i = 0; i < prog.num_funcs; ++i)
     free_func(prog.funcs + i);
+  free(prog.funcs);
 }

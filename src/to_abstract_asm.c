@@ -116,7 +116,6 @@ asm_func_t trans_func(program_t *prog, size_t which_fun)
 	}
       uint16_t opcode = get_opcode(*insn);
       //make_space(&insns, &insns_space, ni);
-      fprintf(stderr, "%d\n", opcode);
       switch(opcode)
 	{
 	case NOP:

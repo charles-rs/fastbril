@@ -344,12 +344,12 @@ void trivial_epilogue(asm_func_t f, FILE *insn_stream, size_t stack_offset)
 	      {.other = "ret"}}, insn_stream);
 }
 
-asm_func_t allocate(asm_prog_t p, size_t which_fun)
+asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 {
   char *mem_stream;
   size_t size_loc;
   FILE *insn_stream = open_memstream(&mem_stream, &size_loc);
-  asm_func_t f = p.funcs[which_fun];
+  asm_func_t f = p->funcs[which_fun];
   size_t stack_offset = trivial_prologue(f, insn_stream);
   for(size_t i = 0; i < f.num_insns; ++i)
     {
@@ -425,7 +425,7 @@ asm_func_t allocate(asm_prog_t p, size_t which_fun)
 	    for(size_t x = 0; x < num_args; x += 32)
 	      {
 		for(size_t argi = 0; x * 32 + argi < num_args && argi < 32; ++argi)
-		  typed_args[i] = f.insns[i + 1 + x/32]
+		  typed_args[x * 32 + argi] = f.insns[i + 1 + x/32]
 		    .value.abs_call_ext.typed_temps[argi];
 		++i;
 	      }
@@ -548,11 +548,14 @@ asm_func_t allocate(asm_prog_t p, size_t which_fun)
 
 asm_prog_t triv_allocate(asm_prog_t p)
 {
-  asm_func_t *funcs = malloc(sizeof(asm_func_t) * p.num_funcs);
+  asm_func_t *funs = malloc(sizeof(asm_func_t) * p.num_funcs);
+
   for(size_t i = 0; i < p.num_funcs; ++i)
-    funcs[i] = allocate(p, i);
+    {
+	funs[i] = allocate(&p, i);
+    }
   return (asm_prog_t)
-    {.funcs = funcs,
+    {.funcs = funs,
      .num_funcs = p.num_funcs};
 }
 

@@ -1,7 +1,7 @@
 #ifndef ASM_H
 #define ASM_H
 
-#define __ARM_ARCH //x86 debugging
+//#define __ARM_ARCH //x86 debugging
 
 #ifdef __ARM_ARCH
 #include "armv8.h"

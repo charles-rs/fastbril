@@ -5,7 +5,7 @@
 #include "asm.h"
 
 
-#define __ARM_ARCH
+//#define __ARM_ARCH
 #ifdef __ARM_ARCH
 #include "armv8.h"
 #endif
