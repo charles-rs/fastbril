@@ -31,7 +31,7 @@ typedef enum arm_arg_tp {REG, CNST, TMP} arm_arg_tp_t;
 typedef union arm_arg
 {
   arm_reg_t reg;
-  int16_t cnst;
+  int32_t cnst;
   uint16_t tmp;
 } arm_arg_t;
 
