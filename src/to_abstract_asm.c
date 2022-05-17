@@ -391,14 +391,10 @@ asm_func_t trans_func(program_t *prog, size_t which_fun)
 	  break;
 	case FREE:
 	  write_insn(&(tagged_arm_insn_t)
-		     {.type = ANORM, .value = (arm_insn_t)
-		      {.norm = (norm_arm_insn_t)
-		       {.op = ALSL,
-			.dest = (arm_arg_tagged_t)
-			{.type = REG, .value = (arm_arg_t)
-			 {.reg = X0}},
-		        .a1 = from_tmp(insn->norm_insn.arg1),
-			.a2 = from_const(3)}}}, insn_stream);
+		     {.type = AMOV, .value = (arm_insn_t)
+		      {.mov = (mov_arm_insn_t)
+		       {.dest = from_reg(X0),
+			.src = from_tmp(insn->norm_insn.arg1)}}}, insn_stream);
 	  write_insn(&(tagged_arm_insn_t)
 		     {.type = ACALL, .value = (arm_insn_t)
 		      {.call = (call_arm_insn_t)
