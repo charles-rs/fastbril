@@ -18,7 +18,7 @@ INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 
-CFLAGS += $(INC_FLAGS) -std=c11
+CFLAGS += $(INC_FLAGS)
 
 .PHONY: debug
 

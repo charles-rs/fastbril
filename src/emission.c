@@ -109,7 +109,8 @@ void emit_instructions(FILE *stream, program_t *prog, size_t which_fun)
 	  emit_constant(stream, insn->const_insn.dest, insn->const_insn.value);
 	  break;
 	case LCONST:
-	  emit_constant(stream, insn->long_const_insn.dest, (insn + 1)->const_ext.int_val);
+	  emit_constant(stream, insn->long_const_insn.dest,
+			(insn + 1)->const_ext.int_val);
 	  ++i;
 	  break;
 	case ADD:
@@ -405,7 +406,7 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 		}
 	    } else
 	    {
-	      if(other_args < 8)
+	      if(other_args < 7)
 		++other_args;
 	      else
 		{
@@ -425,7 +426,7 @@ void emit_function(FILE *stream, program_t *prog, size_t which_fun)
 		fstore(stream, double_args++, i);
 	    } else
 	    {
-	      if(other_args < 9)
+	      if(other_args < 8)
 		store(stream, other_args++, i);
 	    }
 	}

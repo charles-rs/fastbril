@@ -9,7 +9,10 @@
 #include "byte-io.h"
 #include "interp.h"
 #include "pretty-printer.h"
-#include "emission.h"
+//#include "emission.h"
+#include "asm.h"
+#include "to_abstract_asm.h"
+#include "trivial-regalloc.h"
 
 /* Bit masks for cmd flags/modes */
 #define OUTPUT_BYTECODE 0x0001
@@ -131,7 +134,11 @@ int main(int argc, char **argv)
   if(options & EMIT_ASM)
     {
       FILE *f = fopen(out_file ? out_file : "output.s", "w+");
-      emit_program(f, "unknown.bril", prog);
+      asm_prog_t p = bytecode_to_abs_asm(prog);
+      asm_prog_t allocd = triv_allocate(p);
+      free_asm_prog(p);
+      emit_insns(f, &allocd);
+      //emit_program(f, "unknown.bril", prog);
       fclose(f);
     }
   free(string);
