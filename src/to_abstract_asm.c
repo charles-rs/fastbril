@@ -319,7 +319,8 @@ asm_func_t trans_func(program_t *prog, size_t which_fun)
 			   {.dest = (arm_arg_tagged_t)
 			    {.type = REG, .value = (arm_arg_t)
 			     {.reg = D0}},
-			    .src = from_tmp(insn->norm_insn.arg1)}}}, insn_stream);
+			    .src = from_tmp(insn->norm_insn.arg1),
+			    .is_float = true}}}, insn_stream);
 	      break;
 	    default:
 	      write_insn(&(tagged_arm_insn_t)
@@ -328,7 +329,8 @@ asm_func_t trans_func(program_t *prog, size_t which_fun)
 			   {.dest = (arm_arg_tagged_t)
 			    {.type = REG, .value = (arm_arg_t)
 			     {.reg = X0}},
-			    .src = from_tmp(insn->norm_insn.arg1)}}}, insn_stream);
+			    .src = from_tmp(insn->norm_insn.arg1),
+			    .is_float = false}}}, insn_stream);
 	    }
 	  arm_insn_t ins;
 	  sprintf(ins.other, "\tb\t.L%s.ret", f.name);

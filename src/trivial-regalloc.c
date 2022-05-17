@@ -403,8 +403,11 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 	  write_insn(movd(insn.value.set.dest, X0), insn_stream);
 	  break;
 	case AMOV:
-	  write_insn(mov(X0, insn.value.mov.src), insn_stream);
-	  write_insn(movd(insn.value.mov.dest, X0), insn_stream);
+	  {
+	    arm_reg_t reg = insn.value.mov.is_float ? D0 : X0;
+	    write_insn(mov(reg, insn.value.mov.src), insn_stream);
+	    write_insn(movd(insn.value.mov.dest, reg), insn_stream);
+	  }
 	  break;
 	case AMOVC:
 	  trans_const(insn_stream, insn.value.movc.dest, insn.value.movc.val);
