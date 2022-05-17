@@ -432,6 +432,10 @@ asm_func_t trans_func(program_t *prog, size_t which_fun)
 	  fprintf(stderr, "unsupported opcode: %d\n", opcode);
 	}
     }
+  tagged_arm_insn_t i = (tagged_arm_insn_t)
+    {.type = AOTHER, .value = (arm_insn_t) {}};
+  sprintf(i.value.other, ".LF%s%lx:\n", f.name, f.num_insns);
+  write_insn(&i, insn_stream);
   fclose(insn_stream);
   asm_func_t fun = (asm_func_t)
     {.num_insns = size_loc / sizeof(tagged_arm_insn_t),

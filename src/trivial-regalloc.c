@@ -403,11 +403,16 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 	  write_insn(movd(insn.value.set.dest, X0), insn_stream);
 	  break;
 	case AMOV:
-	  {
-	    arm_reg_t reg = insn.value.mov.is_float ? D0 : X0;
-	    write_insn(mov(reg, insn.value.mov.src), insn_stream);
-	    write_insn(movd(insn.value.mov.dest, reg), insn_stream);
-	  }
+	  if(insn.value.mov.dest.type == REG)
+	    {
+	      write_insn(mov(insn.value.mov.dest.value.reg,
+			     insn.value.mov.src), insn_stream);
+	    } else
+	    {
+	      arm_reg_t reg = insn.value.mov.is_float ? D0 : X0;
+	      write_insn(mov(reg, insn.value.mov.src), insn_stream);
+	      write_insn(movd(insn.value.mov.dest, reg), insn_stream);
+	    }
 	  break;
 	case AMOVC:
 	  trans_const(insn_stream, insn.value.movc.dest, insn.value.movc.val);
@@ -453,7 +458,7 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 			 insn_stream);
 	    int norm_args_left = norm_args;
 	    int float_args_left = float_args;
-	    int stack_args_left = max(norm_args - 9, 0) + max(float_args - 8, 0) - 1;
+	    int stack_args_left = max(norm_args - 8, 0) + max(float_args - 8, 0) - 1;
 	    for(int argidx = num_args - 1; argidx >= 0; --argidx)
 	      {
 		int *left;
@@ -474,7 +479,7 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 				{.ldr = (ldr_arm_insn_t)
 				 {.dest = from_reg(X0),
 				  .address = from_reg(SP),
-				  .offset = 16 + 8 * typed_args[argidx] & 0xffff
+				  .offset = 16 + 8 * (typed_args[argidx] & 0xffff)
 				  + stack_needed}}}, insn_stream);
 		    write_insn((tagged_arm_insn_t)
 			       {.type = ASTR, .value = (arm_insn_t)
@@ -489,7 +494,7 @@ asm_func_t allocate(asm_prog_t *p, size_t which_fun)
 				{.ldr = (ldr_arm_insn_t)
 				 {.dest = get_arg(*left - 1),
 				  .address = from_reg(SP),
-				  .offset = 16 + 8 * typed_args[argidx] & 0xffff
+				  .offset = 16 + 8 * (typed_args[argidx] & 0xffff)
 				  + stack_needed}}}, insn_stream);
 		  }
 		--(*left);
