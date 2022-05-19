@@ -1,5 +1,5 @@
 #include "parser.h"
-#include "hashmap.h"
+#include "libs/hashmap.h"
 #include <stdio.h>
 
 #define TEST_OP(s, ret) if(strcmp(s, str) == 0) { return (ret);}

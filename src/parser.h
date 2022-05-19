@@ -1,8 +1,8 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "json.h"
-#include "instrs.h"
+#include "libs/json.h"
+#include "bril-insns/instrs.h"
 
 /**
  * parses a program...

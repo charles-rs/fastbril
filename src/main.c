@@ -3,16 +3,17 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "json.h"
-#include "instrs.h"
+#include "libs/json.h"
+#include "bril-insns/instrs.h"
 #include "parser.h"
 #include "byte-io.h"
-#include "interp.h"
+#include "interp/interp.h"
 #include "pretty-printer.h"
 //#include "emission.h"
-#include "asm.h"
-#include "to_abstract_asm.h"
-#include "trivial-regalloc.h"
+#include "asm/asm.h"
+#include "asm/to_abstract_asm.h"
+#include "asm/trivial-regalloc.h"
+#include "asm/linear-scan.h"
 
 /* Bit masks for cmd flags/modes */
 #define OUTPUT_BYTECODE 0x0001
@@ -136,9 +137,8 @@ int main(int argc, char **argv)
       FILE *f = fopen(out_file ? out_file : "output.s", "w+");
       asm_prog_t p = bytecode_to_abs_asm(prog);
       asm_prog_t allocd = triv_allocate(p);
-      //free_asm_prog(p);
+      free_asm_prog(p);
       emit_insns(f, &allocd);
-      //emit_program(f, "unknown.bril", prog);
       fclose(f);
     }
   free(string);

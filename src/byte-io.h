@@ -1,6 +1,6 @@
 #ifndef BYTE_OUTPUT_H
 #define BYTE_OUTPUT_H
-#include "instrs.h"
+#include "bril-insns/instrs.h"
 #include <stdio.h>
 
 /**

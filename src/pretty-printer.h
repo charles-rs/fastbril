@@ -1,6 +1,6 @@
 #ifndef PRETTY_PRINTER_H
 #define PRETTY_PRINTER_H
-#include "instrs.h"
+#include "bril-insns/instrs.h"
 #include <stdio.h>
 
 /**
