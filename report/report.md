@@ -30,7 +30,7 @@ expensive than necessary.
 In order to make our interpreter as efficient as possible, we have designed a
 very compressed representation of bril instructions: (almost) all of them are
 represented in 64 bits, with some taking multiple 64 bit words as needed. See
-[documentation](https://github.coecis.cornell.edu/cs897/fast-bril/blob/master/doc/brb.pdf)
+the [documentation](https://github.coecis.cornell.edu/cs897/fast-bril/blob/master/doc/brb.pdf).
 
 In order to appease the C typechecker and not rely on undefined behavior, we use
 a union type to internally represent instructions, but most have the first 16
@@ -79,18 +79,19 @@ which turns temps and labels from strings into numbers, and reduces the size of
 the code overall. The bytecode instructions are stored in an array so that we
 can benefit from cache locality. We then interpret them by iterating through
 this array. One minor inconvenience is that certain instructions, such as print,
-require multiple words, and this means that our array index for iteration will
+require multiple words. This means that our array index for iteration will
 NOT be an induction variable, so the C compiler will not be able to optimize it
-as aggressively. One solution to this could be making a less flat structure, and
-using pointers for the multiword instructions, but this seems like more troubles
-than it's worth, especially considering the benefits of cache locality.
+as aggressively. One solution to this could be using a less flat representation 
+of a list of instructions, and using pointers for the multiword 
+instructions, but this seems like more trouble than it's worth, especially 
+considering the benefits of cache locality.
 
 For the armv8 assembly generation, we initially implemented it as a single pass
 over the bytecode that printed the instructions as it went. This is fine, but it
-leaves little option for extensions and improvements, so in order to get started
+leaves little room for extensions and improvements, so in order to get started
 on register allocation we refactored to have an internal representation of arm
 instructions. For this, we went with a tagged union, as it is similar to a
-variant which is very convenient for this, as learned in 4120.
+variant which is very convenient for this, as learned in CS 4120.
 
 ## Evaluation
 We used the Bril benchmarks from the repo, and used clock time to evaluate the
@@ -100,10 +101,10 @@ hurt our interpreter the most, as it has the translation phase. Our results are
 [here](https://github.coecis.cornell.edu/cs897/fast-bril/blob/master/eval/performance.ods),
 in ods format. On average, `brili-rs` has an 84% speedup over `brili`, and
 `fastbrili` has a 77% speedup over `brili-rs`. `fastbrili` also has a 96%
-speedup over `brili`, so I think we can call that a job well done.
+speedup over `brili`, so I think we can call this a job well done.
 
 ## Drawbacks
-So while we would love to say that `fastbrili` is the answer to all of your Bril
+While we would love to say that `fastbrili` is the answer to all of your Bril
 needs, there are some minor drawbacks, mainly that invalid Bril programs cause
 undefined behavior. Most of the type information is erased and then inferred
 (e.g. if you use `add` on two floats, it will not check, assume they are ints,
