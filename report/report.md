@@ -5,10 +5,15 @@ bio = """
 	Charles Sherk is an junior studying Computer Science & Mathematics at
 	Cornell university, interested in compilers and programming language
 	implementation.
+	Susan Garry is a senior studying Computer Science at Cornell University,
+	interested in compilers and programming language design.
 """
 [[extra.authors]]
 name = "Charles Sherk"
 link = "https://github.com/charles-rs/"
+[[extra.authors]]
+name = "Susam Garry"
+link = "https://github.com/susan-garry"
 +++
 
 ## Motivation
