@@ -1,5 +1,7 @@
 #include "linear-scan.h"
 
+#include "../bril-insns/types.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +15,7 @@ typedef struct interval
   int start, end;
   arm_reg_t reg;
   uint16_t temp, stack_loc;
-  bool is_reg;
+  bool is_reg, is_float;
 } interval_t;
 
 typedef struct temps_used
@@ -99,23 +101,98 @@ int cmp_interval_start(const void *p1, const void *p2)
     ((const interval_t *) p2)->start;
 }
 
-int cmp_interval_end(const void *p1, const void *p2)
+int cmp_interval_ptr_end(const void *p1, const void *p2)
 {
-  return ((const interval_t *) p1)->end -
-    ((const interval_t *) p2)->end;
+  return (*(const interval_t **) p1)->end -
+    (*(const interval_t **) p2)->end;
 }
 
 
-interval_t *get_intervals(asm_func_t f)
+void write_call_intervals(FILE *stream, asm_insn_t *insns, size_t i)
+{
+  uint16_t num_args = insns[i].value.abs_call.num_args;
+  size_t float_args = 0, other_args = 0;
+  bool should_write;
+  for(size_t x = 0; x < num_args; x += 32)
+    {
+      for(size_t argi = 0; x * 32 + argi < num_args && argi < 32; ++argi)
+	{
+	  uint16_t tp = insns[i + 1 + x/32].value.abs_call_ext.typed_temps[argi] >> 16;
+	  interval_t ival = (interval_t)
+	    {.start = i,
+	     .end = i + 1,
+	     .temp = 0xffff,
+	     .is_reg = true,
+	    };
+	  if(tp == BRILFLOAT)
+	    {
+	      ival.reg = D0 + float_args;
+	      should_write = float_args++ < 8;
+	    } else
+	    {
+	      ival.reg = X0 + other_args;
+	      should_write = other_args++ < 8;
+	    }
+	  if(should_write)
+	    {
+	      fwrite(&ival, sizeof(interval_t), 1, stream);
+	    }
+	}
+    }
+}
+
+
+void annotate_float_invervals(interval_t *intervals, asm_func_t f)
+{
+  for(size_t i = 0; i < f.num_insns; ++i)
+    {
+      switch(f.insns[i].type)
+	{
+	case ANORM:
+	  switch(f.insns[i].value.norm.op)
+	    {
+	    case AFADD:
+	    case AFMUL:
+	    case AFSUB:
+	    case AFDIV:
+	      {
+		temps_used_t tmps = get_temps_used(f.insns[i]);
+		for(size_t j = 0; j < tmps.num; ++j)
+		  intervals[tmps.tmps[j]].is_float = true;
+		tmps = get_temps_defd(f.insns[i]);
+		for(size_t j = 0; j < tmps.num; ++j)
+		  intervals[tmps.tmps[j]].is_float = true;
+	      }
+	    default: {}
+	    }
+	case ACMP:
+	  if(f.insns[i].value.cmp.is_float)
+	    {
+	      temps_used_t tmps = get_temps_used(f.insns[i]);
+	      for(size_t j = 0; j < tmps.num; ++j)
+		intervals[tmps.tmps[j]].is_float = true;
+	    }
+	default: {}
+	}
+    }
+}
+
+interval_t *get_intervals(asm_func_t f, size_t *num_ivals)
 {
   interval_t *intervals = malloc(sizeof(interval_t) * f.num_temps);
+  char *call_intervals;
+  size_t size_loc;
+  FILE *call_interval_stream = open_memstream(&call_intervals, &size_loc);
   printf("%s:\n", f.name);
   for(uint16_t i = 0; i < f.num_temps; ++i)
     {
       intervals[i].temp = i;
       intervals[i].start = -1;
       intervals[i].end = -1;
+      intervals[i].is_reg = false;
+      intervals[i].is_float = false;
     }
+  annotate_float_invervals(intervals, f);
   for(size_t i = 0; i < f.num_args; ++i)
     {
       intervals[i].start = 0;
@@ -124,8 +201,10 @@ interval_t *get_intervals(asm_func_t f)
     {
       if(f.insns[i].type == AABSCALL)
 	{
-	  if(intervals[f.insns[i].value.abs_call.dest].start == -1)
-	    intervals[f.insns[i].value.abs_call.dest].start = i;
+	  write_call_intervals(call_interval_stream, f.insns, i);
+	  if(f.insns[i].value.abs_call.dest != 0xffff)
+	    if(intervals[f.insns[i].value.abs_call.dest].start == -1)
+	      intervals[f.insns[i].value.abs_call.dest].start = i;
 	  uint16_t num_args = f.insns[i].value.abs_call.num_args;
 	  for(size_t x = 0; x < num_args; x += 32)
 	      {
@@ -159,7 +238,12 @@ interval_t *get_intervals(asm_func_t f)
 	    }
 	}
     }
-  qsort(intervals, f.num_temps, sizeof(interval_t), cmp_interval_start);
+  fclose(call_interval_stream);
+  *num_ivals = f.num_temps + size_loc / sizeof(interval_t);
+  intervals = realloc(intervals, *num_ivals * sizeof(interval_t));
+  memcpy(intervals + f.num_temps, call_intervals, size_loc);
+  free(call_intervals);
+  qsort(intervals, *num_ivals, sizeof(interval_t), cmp_interval_start);
   return intervals;
 }
 
@@ -211,29 +295,82 @@ bool is_float_reg(arm_reg_t r)
     }
 }
 
-void expire_old_intervals(interval_t i, interval_t *active, size_t *num_active,
+void expire_old_intervals(interval_t i, interval_t **active, size_t *num_active,
 			  reg_pool_t *float_pool, reg_pool_t *int_pool)
 {
-  qsort(active, *num_active, sizeof(interval_t), cmp_interval_end);
+  qsort(active, *num_active, sizeof(interval_t), cmp_interval_ptr_end);
   size_t active_shift = 0;
-  for(size_t j = 0; j < num_active; ++j)
+  for(size_t j = 0; j < *num_active; ++j)
     {
-      if(active[j].end >= i.start)
+      if(active[j]->end >= i.start)
 	return;
       active_shift = j;
-      if(is_float_reg(active[j].reg))
-	float_pool->regs[++float_pool->top] = active[j].reg;
+      if(is_float_reg(active[j]->reg))
+	float_pool->regs[++float_pool->top] = active[j]->reg;
       else
-	int_pool->regs[++int_pool->top] = active[j].reg;
+	int_pool->regs[++int_pool->top] = active[j]->reg;
     }
   *num_active -= active_shift;
   memmove(active, active + active_shift * sizeof(interval_t), *num_active);
 }
 
+void spill_at_interval(interval_t *i, interval_t **active, size_t *num_active,
+		       reg_pool_t *float_pool, reg_pool_t *int_pool, size_t *stack_locs)
+{
+  interval_t *spill = active[(*num_active - 1)];
+  if(spill->end > i->end && spill->temp != 0xffff)
+    {
+      i->is_reg = true;
+      i->reg = spill->reg;
+      spill->stack_loc = (*stack_locs += 8);
+      spill->is_reg = false;
+      active[*num_active - 1] = i;
+      qsort(active, *num_active, sizeof(interval_t), cmp_interval_ptr_end);
+    } else
+    {
+      i->is_reg = false;
+      i->stack_loc = (*stack_locs += 8);
+    }
+}
+
+static inline const char *reg_to_string(arm_reg_t reg)
+{
+  switch(reg)
+    {
+    case SP: return "sp"; case X0: return "x0"; case X1: return "x1";
+    case X2: return "x2"; case X3: return "x3"; case X4: return "x4";
+    case X5: return "x5"; case X6: return "x6"; case X7: return "x7";
+    case X8: return "x8"; case X9: return "x9"; case X10: return "x10";
+    case X11: return "x11"; case X12: return "x12"; case X13: return "x13";
+    case X14: return "x14"; case X15: return "x14"; case X16: return "x16";
+    case X17: return "x17"; case X18: return "x18"; case X19: return "x19";
+    case X20: return "x20"; case X21: return "x21"; case X22: return "x22";
+    case X23: return "x23"; case X24: return "x24"; case X25: return "x25";
+    case X26: return "x26"; case X27: return "x27"; case X28: return "x28";
+    case X29: return "x29"; case X30: return "x30"; case XZR: return "xzr";
+    case D0: return "d0"; case D1: return "d1"; case D2: return "d2";
+    case D3: return "d3"; case D4: return "d4"; case D5: return "d5";
+    case D6: return "d6"; case D7: return "d7"; case D8: return "d8";
+    case D9: return "d9"; case D10: return "d10"; case D11: return "d11";
+    case D12: return "d12"; case D13: return "d13"; case D14: return "d14";
+    case D15: return "d15"; case D16: return "d16"; case D17: return "d17";
+    case D18: return "d18"; case D19: return "d19"; case D20: return "d20";
+    case D21: return "d21"; case D22: return "d22"; case D23: return "d23";
+    case D24: return "d24"; case D25: return "d25"; case D26: return "d26";
+    case D27: return "d27"; case D28: return "d28"; case D29: return "d29";
+    case D30: return "d30"; case D31: return "d31";
+    }
+}
+
+static inline size_t floats_active(reg_pool_t *pool) { return 30 - pool->top; }
+
+static inline size_t ints_active(reg_pool_t *pool) {return 29 - pool->top; }
+
 asm_func_t lin_alloc(asm_prog_t p, size_t which_fun)
 {
-  interval_t *intervals = get_intervals(p.funcs[which_fun]);
-  interval_t *active = malloc(sizeof(interval_t) * 128);
+  size_t num_intervals;
+  interval_t *intervals = get_intervals(p.funcs[which_fun], &num_intervals);
+  interval_t **active = malloc(sizeof(interval_t*) * 128);
   reg_pool_t float_pool = (reg_pool_t)
     {.top = 30,
      .regs = {D31, D30, D29, D28, D27, D26, D25, D24, D23, D22, D21, D20, D19, D18,
@@ -242,11 +379,43 @@ asm_func_t lin_alloc(asm_prog_t p, size_t which_fun)
     {.top = 29,
      .regs = {X30, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20, X19, X18,
        X17, X16, X15, X14, X13, X12, X11, X10, X9, X8, X7, X6, X5, X4, X3, X2,}};
-  
-  size_t num_active = 0;
-  for(size_t i = 0; i < p.funcs[which_fun].num_temps; ++i)
+  size_t num_active = 0, stack_locs = 0;
+  for(size_t i = 0; i < num_intervals; ++i)
     {
-      printf("t%d: live from %d to %d\n", intervals[i].temp, intervals[i].start, intervals[i].end);
+      expire_old_intervals(intervals[i], active, &num_active, &float_pool, &int_pool);
+      if(intervals[i].is_float)
+	{
+	  if(float_pool.top == 0)
+	    spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, &stack_locs);
+	  else
+	    {
+	      intervals[i].reg = float_pool.regs[float_pool.top--];
+	      active[num_active++] = intervals + i;
+	      qsort(active, sizeof(interval_t), num_active, cmp_interval_ptr_end);
+	    }
+	} else
+	{
+	  if(int_pool.top == 0)
+	    spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, &stack_locs);
+	  else
+	    {
+	      intervals[i].reg = int_pool.regs[int_pool.top--];
+	      active[num_active++] = intervals + i;
+	      qsort(active, sizeof(interval_t), num_active, cmp_interval_ptr_end);
+	    }
+	}
+    }
+
+
+
+  
+  for(size_t i = 0; i < num_intervals; ++i)
+    {
+      if(intervals[i].is_reg)
+	printf("reg: %s live from %d to %d\n", reg_to_string(intervals[i].reg),
+	       intervals[i].start, intervals[i].end);
+      else
+	printf("t%d: live from %d to %d\n", intervals[i].temp, intervals[i].start, intervals[i].end);
     }
   free(intervals);
   return p.funcs[which_fun];
