@@ -70,6 +70,11 @@ static inline uint16_t type_of_json_value(struct json_value_s *value)
   uint16_t ptr_depth = 0;
   while(value->type == json_type_object)
     {
+      if(ptr_depth >= 1 << 14)
+	{
+	  fprintf(stderr, "pointers nested too deep\n");
+	  exit(1);
+	}
       ++ptr_depth;
       value = json_value_as_object(value)->start->value;
     }
@@ -116,6 +121,11 @@ static inline uint16_t parse_temp(struct json_value_s *tmp,
       return precomped->num;
     } else
     {
+      if(*num_tmps + 1 == 0xffff)
+	{
+	  fprintf(stderr, "too many variables!!!\n");
+	  exit(1);
+	}
       uint16_t tmp  = *num_tmps;
       *num_tmps = *num_tmps + 1;
       hashmap_set(tmp_map, &(hashdat){.str = nm, .num = tmp});
@@ -210,6 +220,11 @@ size_t parse_instruction(struct json_object_s *json,
   const char *value = 0;
   const char *fun_nm = 0;
 
+  if(dest + 1 == 0xffff)
+    {
+      fprintf(stderr, "too many instructions. please modularize your code\n");
+      exit(1);
+    }
   while(field)
     {
       if(strcmp(field->name->string, "op") == 0)
