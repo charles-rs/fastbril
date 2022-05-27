@@ -138,8 +138,8 @@ int main(int argc, char **argv)
       asm_prog_t p = bytecode_to_abs_asm(prog);
       linear_scan(p);
       asm_prog_t allocd = triv_allocate(p);
-      free_asm_prog(p);
-      emit_insns(f, &allocd);
+      //free_asm_prog(p);
+      emit_insns(f, &p);
       fclose(f);
     }
   free(string);
