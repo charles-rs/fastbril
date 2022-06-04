@@ -335,8 +335,7 @@ size_t parse_instruction(struct json_object_s *json,
 	  {
 	    .opcode_lbled = tagged_opcode,
 	    .dest = insn_dest,
-	    .num_choices = numargs,
-	    .__unused = 0
+	    .num_choices = numargs
 	  };
 	for(size_t phi_ext_idx = 0; phi_ext_idx < numargs; phi_ext_idx += 2)
 	  {
