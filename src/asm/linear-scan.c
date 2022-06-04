@@ -1,4 +1,6 @@
 #include "linear-scan.h"
+#include "armv8.h"
+#include "asm_util.h"
 
 #include "../bril-insns/types.h"
 
@@ -7,7 +9,6 @@
 #include <string.h>
 
 #ifdef __ARM_ARCH
-
 
 
 typedef struct interval
@@ -108,16 +109,22 @@ temps_used_t get_temps_defd(tagged_arm_insn_t insn)
     }
 }
 
-int cmp_interval_start(const void *p1, const void *p2)
+static int cmp_interval_start(const void *p1, const void *p2)
 {
   return ((const interval_t *) p1)->start -
     ((const interval_t *) p2)->start;
 }
 
-int cmp_interval_ptr_end(const void *p1, const void *p2)
+static int cmp_interval_ptr_end(const void *p1, const void *p2)
 {
   return (*(const interval_t **) p1)->end -
     (*(const interval_t **) p2)->end;
+}
+
+static int cmp_interval_tmp(const void *p1, const void *p2)
+{
+  return ((const interval_t *) p1)->temp -
+    ((const interval_t *) p2)->temp;
 }
 
 
@@ -423,21 +430,21 @@ static inline size_t floats_active(reg_pool_t *pool) {return pool->top;}//{ retu
 
 static inline size_t ints_active(reg_pool_t *pool) {return pool->top;}//{return 29 - pool->top; }
 
-asm_func_t *lin_alloc(asm_prog_t p, size_t which_fun)
+interval_t *lin_allocate(asm_prog_t p, size_t which_fun, size_t *num_intervals,
+			 size_t *stack_locs)
 {
-  size_t num_intervals;
-  interval_t *intervals = get_intervals(p.funcs[which_fun], &num_intervals);
+  interval_t *intervals = get_intervals(p.funcs[which_fun], num_intervals);
   interval_t **active = malloc(sizeof(interval_t*) * 128);
   reg_pool_t float_pool = (reg_pool_t)
     {.top = 29,
      .regs = {D31, D30, D29, D28, D27, D26, D25, D24, D23, D22, D21, D20, D19, D18,
        D17, D16, D15, D14, D13, D12, D11, D10, D9, D8, D7, D6, D5, D4, D3, D2,}};
   reg_pool_t int_pool = (reg_pool_t)
-    {.top = 28,
-     .regs = {X30, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20, X19, X18,
+    {.top = 26,
+     .regs = {X28, X27, X26, X25, X24, X23, X22, X21, X20, X19, X18,
        X17, X16, X15, X14, X13, X12, X11, X10, X9, X8, X7, X6, X5, X4, X3, X2,}};
-  size_t num_active = 0, stack_locs = 0;
-  for(size_t i = 0; i < num_intervals; ++i)
+  size_t num_active = 0;
+  for(size_t i = 0; i < *num_intervals; ++i)
     {
        expire_old_intervals(intervals[i], active, &num_active, &float_pool, &int_pool);
       if(is_preallocated(intervals + i))
@@ -451,7 +458,7 @@ asm_func_t *lin_alloc(asm_prog_t p, size_t which_fun)
 	  if(intervals[i].is_float)
 	    {
 	      if(float_pool.top == -1)
-		spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, &stack_locs);
+		spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, stack_locs);
 	      else
 		{
 		  intervals[i].reg = float_pool.regs[float_pool.top--];
@@ -463,7 +470,7 @@ asm_func_t *lin_alloc(asm_prog_t p, size_t which_fun)
 	    } else
 	    {
 	      if(int_pool.top == -1)
-		spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, &stack_locs);
+		spill_at_interval(intervals + i, active, &num_active, &float_pool, &int_pool, stack_locs);
 	      else
 		{
 		  intervals[i].reg = int_pool.regs[int_pool.top--];
@@ -477,7 +484,7 @@ asm_func_t *lin_alloc(asm_prog_t p, size_t which_fun)
 	}
     }
   
-  for(size_t i = 0; i < num_intervals; ++i)
+  for(size_t i = 0; i < *num_intervals; ++i)
     {
       if(intervals[i].is_reg)
 	printf("t%d : %s live from %d to %d\n", intervals[i].temp, reg_to_string(intervals[i].reg), intervals[i].start, intervals[i].end);
@@ -489,16 +496,162 @@ asm_func_t *lin_alloc(asm_prog_t p, size_t which_fun)
       /* else */
       /* 	printf("t%d: live from %d to %d\n", intervals[i].temp, intervals[i].start, intervals[i].end); */
     }
-  //free(intervals);
-  //free(active);
-  return &(p.funcs[which_fun]);
+  free(active);
+  return intervals;
+}
+
+static inline bool is_saved_reg(arm_reg_t reg)
+{
+  //TODO IMPLEMENT
+  return true;
+}
+
+static arm_reg_t *get_saved_used(interval_t *intervals, size_t num_intervals,
+				bool save_for_main, size_t *num_used)
+{
+  bool reg_map[128] = {0};
+  if(save_for_main)
+    reg_map[X19] = true;
+  for(size_t i = 0; i < num_intervals; ++i)
+    {
+      if(intervals[i].is_reg && is_saved_reg(intervals[i].reg))
+	reg_map[intervals[i].reg] = true;
+    }
+  for(size_t i = 0; i < 128; ++i)
+    {
+      if(reg_map[i])
+	++(*num_used);
+    }
+  arm_reg_t *used = malloc(*num_used * sizeof(arm_reg_t));
+  size_t j = 0;
+  for(size_t i = 0; i < 128; ++i)
+    {
+      if(reg_map[i])
+	used[j++] = i;
+    }
+  return used;
+}
+
+
+size_t linear_prologue(asm_func_t f, FILE *insn_stream, interval_t *intervals,
+		       size_t num_intervals, size_t stack_locs)
+{
+  size_t stack_offset = 8 * stack_locs + 8;
+  bool is_main = strcmp(f.name, "main") == 0;
+  size_t num_saved_reg;
+  arm_reg_t *saved_used = get_saved_used(intervals, num_intervals, is_main &&
+					 f.num_args != 0, &num_saved_reg);
+  stack_offset -= num_saved_reg;
+  if(stack_offset % 16 != 0)
+    stack_offset += 8;
+  if(stack_offset < 512)
+    {
+      tagged_arm_insn_t i = (tagged_arm_insn_t)
+	{.type = AOTHER, .value = (arm_insn_t) {}};
+      sprintf(i.value.other, "\tstp\tx29, x30, [sp, -%ld]!", stack_offset);
+      write_insn(i, insn_stream);
+    } else
+    {
+      write_insn((tagged_arm_insn_t)
+		 {.type = ANORM, .value = (arm_insn_t)
+		  {.norm = (norm_arm_insn_t)
+		   {.op = ASUB, .dest = from_reg(SP),
+		    .a1 = from_reg(SP), .a2 = from_const(stack_offset)}}},
+		       insn_stream);
+      tagged_arm_insn_t i = (tagged_arm_insn_t)
+	{.type = AOTHER, .value = (arm_insn_t) {}};
+      sprintf(i.value.other, "\tstp\tx29, x30, [sp, -%ld]!", stack_offset);
+      write_insn(i, insn_stream);
+    }
+  write_insn(mov(X29, from_reg(SP)), insn_stream);
+  //save the saved registers
+  for(size_t i = 0; i < num_saved_reg; ++i)
+    {
+      write_insn((tagged_arm_insn_t)
+		 {.type = ASTR, .value = (arm_insn_t)
+		  {.str = (str_arm_insn_t)
+		   {.value = from_reg(saved_used[i]),
+		    .address = from_reg(SP),
+		    .offset = stack_offset - 16 - (8 * i)}}}, insn_stream);
+    }
+  if(is_main && f.num_args != 0)
+    {
+      write_insn(mov(X19, from_reg(X1)), insn_stream);
+      for(size_t i = 0; i < f.num_args; ++i)
+	{
+	  write_insn((tagged_arm_insn_t)
+		     {.type = ALDR, .value = (arm_insn_t)
+		      {.ldr = (ldr_arm_insn_t)
+		       {.dest = from_reg(X0),
+			.address = from_reg(X19),
+			.offset = (i + 1) * 8}}}, insn_stream);
+	  switch(f.arg_types[i])
+	    {
+	          case BRILINT:
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ACALL, .value = (arm_insn_t)
+			  {.call = (call_arm_insn_t)
+			   {.name = "int_of_string"}}}, insn_stream);
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ASTR, .value = (arm_insn_t)
+			  {.str = (str_arm_insn_t)
+			   {.value = from_reg(X0),
+			    .address = from_reg(SP),
+			    .offset = 16 + i * 8}}}, insn_stream);
+	      break;
+	    case BRILBOOL:
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ACALL, .value = (arm_insn_t)
+			  {.call = (call_arm_insn_t)
+			   {.name = "bool_of_string"}}}, insn_stream);
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ASTR, .value = (arm_insn_t)
+			  {.str = (str_arm_insn_t)
+			   {.value = from_reg(X0),
+			    .address = from_reg(SP),
+			    .offset = 16 + i * 8}}}, insn_stream);
+	      break;
+	    case BRILFLOAT:
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ACALL, .value = (arm_insn_t)
+			  {.call = (call_arm_insn_t)
+			   {.name = "float_of_string"}}}, insn_stream);
+	      write_insn((tagged_arm_insn_t)
+			 {.type = ASTR, .value = (arm_insn_t)
+			  {.str = (str_arm_insn_t)
+			   {.value = from_reg(D0),
+			    .address = from_reg(SP),
+			    .offset = 16 + i * 8}}}, insn_stream);
+	      break;
+	    default:
+	      fprintf(stderr, "main cannot have pointer arguments! Exiting.\n");
+	      exit(1);
+	    }
+	}
+    } else {
+    size_t double_args = 0, other_args = 0, spilled_args = 0;
+    
+  }
+}
+
+
+asm_func_t lin_alloc(asm_prog_t p, size_t which_fun)
+{
+  size_t stack_locs = 0, num_intervals;
+  interval_t *intervals = lin_allocate(p, which_fun, &num_intervals, &stack_locs);
+  char *mem_stream;
+  size_t size_loc;
+  FILE *insn_stream = open_memstream(&mem_stream, &size_loc);
+  asm_func_t f = p.funcs[which_fun];
+  size_t stack_offset = linear_prologue(f, insn_stream, intervals,
+					num_intervals, stack_locs);
 }
 
 asm_prog_t linear_scan(asm_prog_t p)
 {
   asm_func_t *funs = malloc(sizeof(asm_func_t) * p.num_funcs);
   for(size_t i = 0; i < p.num_funcs; ++i)
-    memmove(funs + i, lin_alloc(p, i), sizeof(asm_func_t));
+    funs[i] = lin_alloc(p, i);
   return (asm_prog_t)
     {.funcs = funs,
      .num_funcs = p.num_funcs};
