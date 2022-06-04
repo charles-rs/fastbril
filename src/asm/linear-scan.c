@@ -538,7 +538,7 @@ size_t linear_prologue(asm_func_t f, FILE *insn_stream, interval_t *intervals,
 {
   size_t stack_offset = 8 * stack_locs + 8;
   bool is_main = strcmp(f.name, "main") == 0;
-  size_t num_saved_reg;
+  size_t num_saved_reg = 0;
   arm_reg_t *saved_used = get_saved_used(intervals, num_intervals, is_main &&
 					 f.num_args != 0, &num_saved_reg);
   stack_offset -= num_saved_reg;
